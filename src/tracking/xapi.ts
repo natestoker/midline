@@ -29,7 +29,7 @@ export class XapiAdapter implements TrackingAdapter {
   private actor: any = null;
   private activityId = '';
   private registration = '';
-  private title = 'eLearnForge course';
+  private title = 'Midline course';
   private lastScore: number | null = null;
 
   private get active(): boolean {
@@ -49,7 +49,7 @@ export class XapiAdapter implements TrackingAdapter {
       this.actor = null;
     }
     if (!this.active) {
-      console.warn('eLearnForge: no xAPI launch params; statements disabled, local resume only.');
+      console.warn('Midline: no xAPI launch params; statements disabled, local resume only.');
       return decodeResume(localStorage.getItem(this.localKey()));
     }
     this.send(VERBS.initialized, {});
@@ -119,7 +119,7 @@ export class XapiAdapter implements TrackingAdapter {
       },
       body,
       keepalive: true
-    }).catch((err) => console.warn('eLearnForge xAPI statement failed', err));
+    }).catch((err) => console.warn('Midline xAPI statement failed', err));
   }
 
   handle(event: TrackingEvent): void {

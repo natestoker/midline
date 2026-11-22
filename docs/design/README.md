@@ -1,6 +1,6 @@
 # Design package for Claude Design
 
-Everything Claude Design needs to review eLearnForge screen by screen, built from the real code instead of a description.
+Everything Claude Design needs to review Midline screen by screen, built from the real code instead of a description.
 
 ## What's here
 

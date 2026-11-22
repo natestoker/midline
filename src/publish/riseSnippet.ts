@@ -9,7 +9,7 @@ import type { Project } from '../schema/types';
 // 'completed' postMessage to mark the block complete.
 
 export function riseSnippet(project: Project): string {
-  return `<!-- eLearnForge in a Rise 360 Code Block: "${project.title.replace(/"/g, "'")}" -->
+  return `<!-- Midline in a Rise 360 Code Block: "${project.title.replace(/"/g, "'")}" -->
 <!--
   SETUP
   1. Upload course.html (from this package) anywhere you can host a file,
@@ -54,7 +54,7 @@ function slugify(s: string): string {
 }
 
 export function riseReadme(project: Project): string {
-  return `eLearnForge for Rise 360 - "${project.title}"
+  return `Midline for Rise 360 - "${project.title}"
 ====================================================
 
 CONTENTS

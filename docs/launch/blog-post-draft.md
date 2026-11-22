@@ -1,7 +1,6 @@
 # DRAFT: blog post
 
-Status: draft, not published. `[NAME]` is the new product name, `[LINK]` the
-live URL. Replace both before posting.
+Status: draft, not published. `[LINK]` is the live URL. Replace it before posting.
 
 ---
 
@@ -12,12 +11,12 @@ running into the same wall. Rise is quick but you can't move anything.
 Storyline lets you move everything but a simple page takes an afternoon. Most
 real courses need some of each.
 
-So I built the tool I wanted. It's called [NAME], it runs in a browser, and
+So I built the tool I wanted. It's called Midline, it runs in a browser, and
 today I'm putting an early version up for anyone to try.
 
 ### What it is
 
-[NAME] has Rise-style blocks (tabs, flashcards, labelled graphics, quizzes)
+Midline has Rise-style blocks (tabs, flashcards, labelled graphics, quizzes)
 that you drop onto a Storyline-style slide. Each slide is a free canvas with
 layers, states, a timeline and triggers. You can use a block as it comes, or
 pull it apart and wire it up yourself.
@@ -41,13 +40,13 @@ published course is a single HTML file that works offline.
 
 ### The part I'm most pleased with
 
-[NAME] opens Storyline `.story` files and saves them back out.
+Midline opens Storyline `.story` files and saves them back out.
 
 Open a `.story` file and you get its slides, layers, text, pictures, audio
 with captions, variables and triggers. Storyline's built-in questions arrive
 as working quiz blocks, and result slides keep their design with a live score.
 
-Going the other way, a [NAME] project saves as a `.story` file that opens in
+Going the other way, a Midline project saves as a `.story` file that opens in
 Storyline 360: slides, text, pictures, layers, triggers, narration, and
 quizzes as freeform Pick One, Pick Many and Drag and Drop questions.
 
@@ -68,7 +67,7 @@ This is a preview, and I'd rather tell you now than have you find out.
   JavaScript trigger, so nothing vanishes silently, but you will have some
   tidying to do.
 
-After every open or save, [NAME] shows a report of exactly what did not come
+After every open or save, Midline shows a report of exactly what did not come
 across.
 
 ### Try it

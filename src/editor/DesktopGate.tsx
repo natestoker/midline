@@ -35,7 +35,7 @@ export function DesktopGate() {
         <span className="brand-mark" aria-hidden="true">eF</span>
         <h1>Best on a bigger screen</h1>
         <p>
-          The eLearnForge <b>editor</b> — canvas, timeline, and panels — needs a
+          The Midline <b>editor</b> — canvas, timeline, and panels — needs a
           desktop or tablet to lay out properly. On a phone it gets cramped fast.
         </p>
         <p className="desktop-gate-note">

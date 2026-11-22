@@ -231,7 +231,7 @@ export class Runtime {
       const buffered = this.pendingEvents;
       this.pendingEvents = [];
       for (const e of buffered) {
-        try { fn(e); } catch (err) { console.warn('eLearnForge tracking listener failed', err); }
+        try { fn(e); } catch (err) { console.warn('Midline tracking listener failed', err); }
       }
     }
     return () => this.trackers.delete(fn);
@@ -243,7 +243,7 @@ export class Runtime {
       return;
     }
     this.trackers.forEach((fn) => {
-      try { fn(e); } catch (err) { console.warn('eLearnForge tracking listener failed', err); }
+      try { fn(e); } catch (err) { console.warn('Midline tracking listener failed', err); }
     });
   }
 
@@ -710,7 +710,7 @@ export class Runtime {
 
   private runTriggers(triggers: Trigger[], depth: number): void {
     if (depth > MAX_DEPTH) {
-      console.warn('eLearnForge runtime: trigger depth cap reached, stopping.');
+      console.warn('Midline runtime: trigger depth cap reached, stopping.');
       return;
     }
     for (const trigger of triggers) {

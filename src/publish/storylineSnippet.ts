@@ -9,7 +9,7 @@ import type { Project } from '../schema/types';
 
 export function storylineSnippet(project: Project): string {
   const prefix = 'EF';
-  return `// eLearnForge web object bridge for "${project.title.replace(/"/g, "'")}"
+  return `// Midline web object bridge for "${project.title.replace(/"/g, "'")}"
 // Paste into a Storyline trigger: Execute JavaScript when the timeline
 // starts on the slide that contains the web object.
 //
@@ -59,11 +59,11 @@ export function storylineSnippet(project: Project): string {
 }
 
 export function storylineReadme(project: Project): string {
-  return `eLearnForge web object - "${project.title}"
+  return `Midline web object - "${project.title}"
 =====================================================
 
 WHAT THIS IS
-  A self-contained interaction published from eLearnForge, packaged as a
+  A self-contained interaction published from Midline, packaged as a
   Storyline web object. index.html is the interaction; storyline-bridge.js
   contains the trigger code that receives its results inside Storyline.
 

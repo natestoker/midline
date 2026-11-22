@@ -1,7 +1,7 @@
 # Opening Storyline files
 
 File > Open Storyline (.story) reads an Articulate Storyline 360 project and
-turns it into an eLearnForge project. It is an editable approximation, like
+turns it into an Midline project. It is an editable approximation, like
 the PowerPoint import: the slides, text, pictures, layers and logic come
 across; pixel-perfect rendering does not.
 
@@ -9,7 +9,7 @@ After a file opens, a report lists anything that had no equivalent, by slide.
 
 ## What comes across
 
-| Storyline | eLearnForge |
+| Storyline | Midline |
 | --- | --- |
 | Scenes and slide order | Slides in the same order (scene names are not kept yet) |
 | Slide size | Slide size |
@@ -32,7 +32,7 @@ After a file opens, a report lists anything that had no equivalent, by slide.
 
 ### Triggers
 
-| Storyline | eLearnForge |
+| Storyline | Midline |
 | --- | --- |
 | When the user clicks / hovers / double-clicks | onClick / onHover / onDoubleClick |
 | When the timeline starts on a slide | Slide loads |
@@ -67,7 +67,7 @@ shows the right one. A question with no correct answer (a survey or rating)
 shows its Thank you layer.
 
 Storyline's **form questions** (the ones built in Form view) and the other
-freeform types carry their answers as data, so they arrive as eLearnForge quiz
+freeform types carry their answers as data, so they arrive as Midline quiz
 blocks. The block replaces the Storyline shapes that drew the question and
 shows the feedback text from its Correct and Incorrect layers.
 
@@ -138,7 +138,7 @@ Written:
 
 Quiz blocks are saved as Storyline **freeform questions**:
 
-| eLearnForge block | Storyline question |
+| Midline block | Storyline question |
 | --- | --- |
 | Multiple choice | Pick One, or Pick Many when it allows several answers |
 | Drag and drop | Drag and Drop: items on the left, targets on the right |

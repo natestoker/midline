@@ -52,7 +52,7 @@ export function CodeRuntime({ block, runtime }: RuntimeRendererProps) {
         const fn = new Function('root', 'forge', 'gsap', `(function () {\n${props.js}\n})();`);
         fn(root, forge, gsap);
       } catch (err) {
-        console.error('eLearnForge code block error', err);
+        console.error('Midline code block error', err);
         root.innerHTML = `<div style="font:12px monospace;color:#c0392b;padding:8px">Code block error: ${String(err)}</div>`;
       }
     }

@@ -1874,3 +1874,15 @@ Large-media "Compress" is not built; the check only warns.
   is a new built-in text reference.
 - A shape that is invisible in its Normal state but drawn in another state
   (a marker that appears when selected) is no longer dropped on import.
+
+# v6.41
+
+## New name: Midline
+- eLearnForge is now **Midline**. The name changes everywhere it is shown:
+  the editor, the player, published packages, exported Storyline notes and
+  the docs.
+- Projects save as `<title>.midline.json`. Older `.elearnforge.json` files
+  still open.
+- Nothing saved is lost: browser storage, resume data and the Storyline and
+  Rise bridges keep their existing internal names, so projects, settings and
+  courses published before the rename carry on working.

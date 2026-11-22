@@ -35,6 +35,6 @@ export function runAuthorJs(code: string, forge: Forge, gsap: unknown): void {
   try {
     new Function('forge', 'gsap', `(function () {\n${code}\n})();`)(forge, gsap);
   } catch (err) {
-    console.error('eLearnForge Execute JavaScript error', err);
+    console.error('Midline Execute JavaScript error', err);
   }
 }

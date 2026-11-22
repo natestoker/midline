@@ -1,14 +1,13 @@
 # DRAFT: LinkedIn post
 
-Status: draft, not posted. `[NAME]` is the new product name, `[LINK]` the
-live URL. Replace both before posting.
+Status: draft, not posted. `[LINK]` is the live URL. Replace it before posting.
 
 ---
 
 Rise is fast but you can't move anything. Storyline lets you move everything
 but takes all afternoon.
 
-I got tired of choosing, so I built a third option. It's called [NAME], and
+I got tired of choosing, so I built a third option. It's called Midline, and
 an early version is live today.
 
 It runs in the browser. You get Rise-style blocks (tabs, flashcards, quizzes)

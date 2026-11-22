@@ -5,6 +5,8 @@ import type { Project } from '../schema/types';
 // portable escape hatch. Single 'current' record for v1; multi-project shelf
 // is a v2 door.
 
+// Storage names keep the product's first name (eLearnForge) so projects and
+// settings saved before the rename to Midline are still found.
 const DB_NAME = 'elearnforge';
 const STORE = 'projects';
 const CURRENT_KEY = 'current';
@@ -83,7 +85,7 @@ function rememberHandle(handle: unknown | null): void {
 }
 
 // Project-folder mode: pick a folder ONCE and every Save writes
-// <title>.elearnforge.json into it silently - no picker at all. The
+// <title>.midline.json into it silently - no picker at all. The
 // directory handle persists in IndexedDB like the file handle.
 const DIR_KEY = 'dirHandle';
 let currentDirHandle: any | null = null;
@@ -139,7 +141,7 @@ async function ensurePermission(handle: any): Promise<boolean> {
 }
 
 function projectFileName(project: Project): string {
-  return `${project.title.replace(/[^\w\- ]+/g, '').trim() || 'project'}.elearnforge.json`;
+  return `${project.title.replace(/[^\w\- ]+/g, '').trim() || 'project'}.midline.json`;
 }
 
 export async function importProjectJsonWithPicker(): Promise<Project | null> {
@@ -147,8 +149,8 @@ export async function importProjectJsonWithPicker(): Promise<Project | null> {
     try {
       const [handle] = await (window as any).showOpenFilePicker({
         types: [{
-          description: 'eLearnForge Project',
-          accept: { 'application/json': ['.json', '.elearnforge.json'] }
+          description: 'Midline Project',
+          accept: { 'application/json': ['.json', '.midline.json', '.elearnforge.json'] }
         }],
         multiple: false
       });
@@ -189,7 +191,7 @@ export async function exportProjectJson(project: Project, forcePicker = false): 
       }
 
       // Folder mode: no file target yet, but a project folder is set -
-      // write <title>.elearnforge.json into it, no picker. (Save As skips
+      // write <title>.midline.json into it, no picker. (Save As skips
       // this: it always asks for the name.)
       if (!currentFileHandle && currentDirHandle && !forcePicker) {
         if (await ensurePermission(currentDirHandle)) {
@@ -203,8 +205,8 @@ export async function exportProjectJson(project: Project, forcePicker = false): 
         rememberHandle(await (window as any).showSaveFilePicker({
           suggestedName: projectFileName(project),
           types: [{
-            description: 'eLearnForge Project',
-            accept: { 'application/json': ['.json', '.elearnforge.json'] }
+            description: 'Midline Project',
+            accept: { 'application/json': ['.json', '.midline.json', '.elearnforge.json'] }
           }]
         }));
       }
@@ -233,7 +235,7 @@ export async function exportProjectJson(project: Project, forcePicker = false): 
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${project.title.replace(/[^\w\- ]+/g, '').trim() || 'project'}.elearnforge.json`;
+  a.download = `${project.title.replace(/[^\w\- ]+/g, '').trim() || 'project'}.midline.json`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -245,7 +247,7 @@ export function importProjectJson(file: File): Promise<Project> {
       try {
         const p = JSON.parse(String(reader.result)) as Project;
         if (!p || !Array.isArray(p.slides) || p.slides.length === 0) {
-          throw new Error('Not a valid eLearnForge project file.');
+          throw new Error('Not a valid Midline project file.');
         }
         if (!Array.isArray(p.variables)) p.variables = [];
         resolve(p);

@@ -9,7 +9,7 @@ Run it once with **NVDA + Chrome**. Repeat with **JAWS + Chrome** and
 
 ## Set-up
 
-1. Open eLearnForge, load the demo course (Welcome screen > demo), Publish >
+1. Open Midline, load the demo course (Welcome screen > demo), Publish >
    Web, and open the downloaded HTML file in the browser.
 2. Start the screen reader. NVDA: `Ctrl+Alt+N`. JAWS runs 40 minutes without
    a licence. VoiceOver: `Cmd+F5`.

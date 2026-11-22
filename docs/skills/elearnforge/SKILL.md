@@ -1,9 +1,9 @@
 ---
 name: elearnforge
-description: Use whenever building, debugging, extending, or reasoning about eLearnForge, the browser-based eLearning authoring tool (React + TypeScript + Vite + Zustand) that compiles to a single offline-capable HTML file. It is a Rise/Storyline hybrid combining prebuilt content blocks with a canvas, layers, and a trigger engine, and it opens and saves Storyline .story files. Trigger on "eLearnForge", "the authoring tool", "canvas-per-slide", "block library", "trigger engine", "player options", "image clip / pen tool", "PPTX import", "Kokoro TTS", "Open Storyline", "Save as Storyline", "story import / export", "question bank", "lightbox slide", "SCORM / xAPI publish", or the architecture brief. Read this BEFORE writing feature or renderer code so you honor the existing architecture and conventions instead of reinventing them.
+description: Use whenever building, debugging, extending, or reasoning about Midline (formerly eLearnForge), the browser-based eLearning authoring tool (React + TypeScript + Vite + Zustand) that compiles to a single offline-capable HTML file. It is a Rise/Storyline hybrid combining prebuilt content blocks with a canvas, layers, and a trigger engine, and it opens and saves Storyline .story files. Trigger on "Midline", "eLearnForge", "the authoring tool", "canvas-per-slide", "block library", "trigger engine", "player options", "image clip / pen tool", "PPTX import", "Kokoro TTS", "Open Storyline", "Save as Storyline", "story import / export", "question bank", "lightbox slide", "SCORM / xAPI publish", or the architecture brief. Read this BEFORE writing feature or renderer code so you honor the existing architecture and conventions instead of reinventing them.
 ---
 
-# eLearnForge: Authoring Tool Build Knowledge
+# Midline (formerly eLearnForge): Authoring Tool Build Knowledge
 
 A browser-based eLearning authoring tool positioned as a **hybrid of
 Articulate Rise and Storyline**: Rise-style prebuilt **blocks** on a
@@ -17,7 +17,7 @@ specifics against the code.
 ## The single-file rule is inverted here
 
 Nathan's other tools are hand-authored single HTML files with no build step.
-**eLearnForge is the deliberate exception:** a multi-file React/TS app that
+**Midline is the deliberate exception:** a multi-file React/TS app that
 *compiles to* a single offline HTML file. Do not force it back into a
 hand-rolled single file and do not add runtime CDN dependencies. The output
 is still self-contained; the bundler does that.
@@ -36,7 +36,7 @@ is still self-contained; the bundler does that.
 | `src/runtime/` | player UI (Player, PlayerChrome, Lightbox) |
 | `src/publish/` | SCORM / xAPI packaging, PPTX import, Storyline import and export |
 | `src/state/` | Zustand stores (`__forgeStore` is exposed on `window` for tests) |
-| `docs/storyline-import.md` | what maps to what between eLearnForge and Storyline |
+| `docs/storyline-import.md` | what maps to what between Midline and Storyline |
 
 ## Model
 

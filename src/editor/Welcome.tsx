@@ -54,11 +54,11 @@ export function Welcome() {
 
   return (
     <div className="welcome-backdrop" onClick={close}>
-      <div className="welcome" ref={ref} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Welcome to eLearnForge">
+      <div className="welcome" ref={ref} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Welcome to Midline">
         <button className="cs-icon-btn welcome-close" onClick={close} aria-label="Close" title="Close"><Lucide name="x" size={18} /></button>
         <div className="welcome-head">
           <span className="brand-mark" aria-hidden="true">eF</span>
-          <h1>Welcome to eLearnForge</h1>
+          <h1>Welcome to Midline</h1>
           <p>Build interactive courses in your browser. Everything stays on your machine.</p>
         </div>
         <div className="welcome-steps">
@@ -91,7 +91,7 @@ export function Welcome() {
           <a href="https://www.youtube.com/@NathanStoker" target="_blank" rel="noopener noreferrer" title="Tutorials and updates on YouTube">
             <Lucide name="play" size={12} /> YouTube @NathanStoker
           </a>
-          <a href="https://buymeacoffee.com/natestokerz" target="_blank" rel="noopener noreferrer" title="If eLearnForge saved you money on authoring tools, keep it caffeinated">
+          <a href="https://buymeacoffee.com/natestokerz" target="_blank" rel="noopener noreferrer" title="If Midline saved you money on authoring tools, keep it caffeinated">
             Buy me a coffee
           </a>
         </div>

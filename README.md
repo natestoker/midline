@@ -1,4 +1,7 @@
-# eLearnForge
+# Midline
+
+Formerly eLearnForge. The repository and a few internal storage names still
+use the old name so nothing saved before the rename is lost.
 
 A browser authoring tool for interactive e-learning: Rise-style content blocks
 on a Storyline-style canvas with layers, a timeline and a trigger engine.

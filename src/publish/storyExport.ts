@@ -30,7 +30,7 @@ const PX_TO_PT = 3 / 4;
 let fontScale = 1;
 const fontPt = (px: number) => px * PX_TO_PT * fontScale;
 const BIG = '3.40282347E+38';
-// Text with no font set uses the system UI font in eLearnForge; on Windows,
+// Text with no font set uses the system UI font in Midline; on Windows,
 // where Storyline runs, that is Segoe UI. Naming it keeps line breaks close.
 const DEFAULT_FONT = 'Segoe UI';
 // Layouts in the shell project: the Question layout for quiz slides, and the
@@ -443,7 +443,7 @@ async function shapeXml(ctx: Ctx, b: Block, z: number, totalMs: number, trigs: s
     const t = textTail(b, {
       html: String(p.html ?? ''), size: Number(p.fontSize) || 16, color: hex6(p.color as string, '000000'), font: String(p.fontFamily || DEFAULT_FONT),
       align: String(p.align ?? 'left'), valign: String(p.valign ?? 'top'), bold: Boolean(p.bold) || Number(p.fontWeight) >= 600,
-      // eLearnForge pads every text block by 8px; Storyline's margin carries it.
+      // Midline pads every text block by 8px; Storyline's margin carries it.
       lineHeight: Number(p.lineHeight) || undefined,
       inset: { l: (inset.left ?? 0) + 8, t: (inset.top ?? 0) + 8, r: (inset.right ?? 0) + 8, b: (inset.bottom ?? 0) + 8 }
     });
@@ -514,7 +514,7 @@ async function shapeXml(ctx: Ctx, b: Block, z: number, totalMs: number, trigs: s
   } else if (b.type === 'varDisplay') {
     // A variable readout: Storyline shows a variable's value wherever its
     // name sits between percent signs.
-    // eLearnForge's built-in readouts map onto Storyline's own variables. The
+    // Midline's built-in readouts map onto Storyline's own variables. The
     // score has none without a result slide, so a Score variable is added and
     // each question's Correct layer adds to it.
     const raw = String(p.reference ?? '');
@@ -529,7 +529,7 @@ async function shapeXml(ctx: Ctx, b: Block, z: number, totalMs: number, trigs: s
   } else {
     warn(ctx, `"${b.type}" blocks have no Storyline equivalent; an outlined box marks where each one was`);
     line = 'C2410C'; lineW = 1;
-    text = { html: `<p>${xa(`${b.name || b.type} (eLearnForge ${b.type} block, not converted)`)}</p>`, size: 14, color: 'C2410C', font: DEFAULT_FONT, align: 'center', valign: 'center', bold: false, inset: { l: 7, t: 3, r: 7, b: 3 } };
+    text = { html: `<p>${xa(`${b.name || b.type} (Midline ${b.type} block, not converted)`)}</p>`, size: 14, color: 'C2410C', font: DEFAULT_FONT, align: 'center', valign: 'center', bold: false, inset: { l: 7, t: 3, r: 7, b: 3 } };
   }
   const t = textTail(b, text);
   return `<${tag} ${head(b, g, z, '110855', tag)} autoFit="${text && !t.fits ? 'resize' : 'none'}" shdw="none" wrap="true" scrollOverflow="none" rtl="false" defHorzAlign="c" horzAlign="${text ? halignAttr(text.align) : 'not'}" vertAlign="${text ? valignAttr(text.valign) : 'not'}" textDir="not">${tmCtx('txtTmCtx', b, totalMs)}<childLst />${trigLst}<stateLst />${paintBg(fill, line, lineW)}${locXml(ctx, b)}${anim}${hLink}${t.text}${propBag()}${geom}${t.tail}</${tag}>`;
@@ -584,7 +584,7 @@ function actionParts(ctx: Ctx, a: Action, sourceBlockId: string | undefined): Pa
     // JavaScript trigger: working script where one exists, otherwise a comment
     // that says what the trigger did, so the logic is not lost.
     case 'executeJs':
-      return { action: 'executeJavaScript', js: `// From eLearnForge. forge.get / forge.set calls need rewriting for Storyline: GetPlayer().GetVar / SetVar.\n${a.code}` };
+      return { action: 'executeJavaScript', js: `// From Midline. forge.get / forge.set calls need rewriting for Storyline: GetPlayer().GetVar / SetVar.\n${a.code}` };
     case 'openUrl':
       return { action: 'jumpToFileUrl', open: a.url };
     case 'resetVariable': {
@@ -593,7 +593,7 @@ function actionParts(ctx: Ctx, a: Action, sourceBlockId: string | undefined): Pa
     }
     default: {
       warn(ctx, `"${a.type}" has no Storyline action; it was saved as an Execute JavaScript trigger holding a note`);
-      return { action: 'executeJavaScript', js: `// eLearnForge action with no Storyline equivalent: ${JSON.stringify(a)}` };
+      return { action: 'executeJavaScript', js: `// Midline action with no Storyline equivalent: ${JSON.stringify(a)}` };
     }
   }
 }
@@ -1039,15 +1039,15 @@ export async function exportStory(project: Project): Promise<StoryExportResult> 
   story = story.replace('</varLst>', `${vars}${scoreVar}</varLst>`);
   const now = new Date().toISOString().replace('Z', '0000+00:00');
   const pictureXml = [...ctx.media.values()].map((m) =>
-    `<media g="${m.g}" verG="${guid()}" type="Png" displayName="${xa(m.name)}" origFile="C:\\eLearnForge\\${xa(m.name)}" source="C:\\eLearnForge\\${xa(m.name)}" useCnt="0" bytes="${m.bytes.length}" modDT="${now}" addDT="${now}"><langAltText /><md5Checksum><stream>${m.hash}</stream><source>${m.hash}</source></md5Checksum></media>`).join('');
+    `<media g="${m.g}" verG="${guid()}" type="Png" displayName="${xa(m.name)}" origFile="C:\\Midline\\${xa(m.name)}" source="C:\\Midline\\${xa(m.name)}" useCnt="0" bytes="${m.bytes.length}" modDT="${now}" addDT="${now}"><langAltText /><md5Checksum><stream>${m.hash}</stream><source>${m.hash}</source></md5Checksum></media>`).join('');
   // Caption files come first, then the clips that point at them, as
   // Storyline orders them. A clip records the WAV it decodes to: mono,
   // 16-bit, at the MP3's own sample rate, with a 78-byte header.
   const clips = [...ctx.audio.values()];
   const vttXml = clips.filter((c) => c.vtt).map((c) =>
-    `<media g="${c.vtt!.g}" verG="${guid()}" type="Vtt" displayName="${xa(c.vtt!.name)}" origFile="C:\\eLearnForge\\${xa(c.vtt!.name)}" source="C:\\eLearnForge\\${xa(c.vtt!.name)}" useCnt="0" bytes="${c.vtt!.bytes.length}" modDT="${now}" addDT="${now}"><md5Checksum><stream>${c.vtt!.hash}</stream><source>${c.vtt!.hash}</source></md5Checksum></media>`).join('');
+    `<media g="${c.vtt!.g}" verG="${guid()}" type="Vtt" displayName="${xa(c.vtt!.name)}" origFile="C:\\Midline\\${xa(c.vtt!.name)}" source="C:\\Midline\\${xa(c.vtt!.name)}" useCnt="0" bytes="${c.vtt!.bytes.length}" modDT="${now}" addDT="${now}"><md5Checksum><stream>${c.vtt!.hash}</stream><source>${c.vtt!.hash}</source></md5Checksum></media>`).join('');
   const audioXml = clips.map((c) => {
-    const file = `C:\\eLearnForge\\${xa(c.name)}`;
+    const file = `C:\\Midline\\${xa(c.name)}`;
     const cc = c.vtt ? ` ClosedCaptionsAssetGuid="${c.vtt.g}" hasClosedCaptions="true"` : ' hasClosedCaptions="false"';
     return `<audio g="${c.g}" verG="${guid()}" type="Mp3" displayName="${xa(c.name)}" origFile="${file}" source="${file}" useCnt="0" bytes="${c.bytes.length}" modDT="${now}" addDT="${now}"${cc} origBytes="${c.bytes.length}" origModDT="${now}"><langAltText /><md5Checksum><stream>${c.hash}</stream><source>${c.hash}</source></md5Checksum><props valid="true" file="${file.replace(/\.mp3$/, '.wav')}" bytes="${c.sampleCnt * 2 + 78}" channels="1" samples="${c.rate}" bits="${c.sampleCnt * 2}" sampleCnt="${c.sampleCnt}" startPt="78" mp3="false" origFile="${file}" /></audio>`;
   }).join('');

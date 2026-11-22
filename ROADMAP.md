@@ -4,9 +4,9 @@ Items here are planned work, ordered by when we expect to pick them up. "Next" m
 
 ## Next: open and save Storyline `.story` projects
 
-**Goal.** Open a Storyline 360 `.story` file in eLearnForge and edit it. Later, write changes back into a `.story` that Storyline opens without complaint.
+**Goal.** Open a Storyline 360 `.story` file in Midline and edit it. Later, write changes back into a `.story` that Storyline opens without complaint.
 
-**Why it matters.** Most of the people we want to reach already have years of courses in Storyline. Today the only way in is PowerPoint import, which drops triggers, layers, states and timelines. A `.story` importer brings the logic across, and write-back makes eLearnForge usable as a second editor on the same file instead of a one-way exit.
+**Why it matters.** Most of the people we want to reach already have years of courses in Storyline. Today the only way in is PowerPoint import, which drops triggers, layers, states and timelines. A `.story` importer brings the logic across, and write-back makes Midline usable as a second editor on the same file instead of a one-way exit.
 
 **What we know about the format.** A `.story` is a ZIP of XML (same container family as OOXML). Slides are `story/slides/slideN.xml`, with the real order in `story/_rels/story.xml.rels`, not the filenames (they use hex suffixes). Project variables carry reliable `builtIn` / `user` flags. Each layer has its own timeline in milliseconds. Entrance effects, triggers, states, groups and notes are all plain XML we can read. This was verified against Storyline build 3.120 files, including an 83-slide course.
 
@@ -14,12 +14,12 @@ Items here are planned work, ordered by when we expect to pick them up. "Next" m
 - It's an undocumented format and can shift between Storyline builds. We've only seen a small number of files.
 - Hand-written audio objects are not safe. They're full slide objects with GUIDs and timeline context, so we must clone existing structure rather than invent it.
 - `playerProps.xml` and other player settings must never be edited by us. Storyline can ship a subtly broken course from a hand edit.
-- eLearnForge's model and Storyline's don't match one to one. Some things will be lossy in each direction.
+- Midline's model and Storyline's don't match one to one. Some things will be lossy in each direction.
 - We can't verify that Storyline accepts a written file from inside this environment. Someone has to open it in Storyline 360.
 
 ### Phase 0: spike (a few days)
 - Collect 4 or 5 real `.story` files from different builds and course styles (simple, heavy triggers, lots of layers, narration, drag-and-drop). We have none in the repo today, so this is the blocker.
-- Catalog which XML tags and attributes actually occur, then write the mapping table: Storyline object, trigger, state or animation to eLearnForge block, trigger, state or animation, with a "no equivalent" column.
+- Catalog which XML tags and attributes actually occur, then write the mapping table: Storyline object, trigger, state or animation to Midline block, trigger, state or animation, with a "no equivalent" column.
 - Decide fidelity targets with real examples side by side.
 
 ### Phase 1: open (read-only import)
@@ -39,7 +39,7 @@ Start with the conservative version. Keep the original package untouched and wri
 - Every write-back gets opened in real Storyline before we call it supported.
 
 ### Phase 3: wider write-back (research)
-Writing new objects, triggers, animations or layers into Storyline XML. Only attempt it per object type, and only after Phase 2 is solid and we have clone-from-example recipes verified in Storyline. Audio stays out until we can clone from a file that already has narration. Full regeneration of a `.story` from an eLearnForge project is the long shot and may never be worth it.
+Writing new objects, triggers, animations or layers into Storyline XML. Only attempt it per object type, and only after Phase 2 is solid and we have clone-from-example recipes verified in Storyline. Audio stays out until we can clone from a file that already has narration. Full regeneration of a `.story` from an Midline project is the long shot and may never be worth it.
 
 ### Needs from you
 1. A handful of `.story` files to build against, ideally with client content removed.

@@ -1,4 +1,4 @@
-# eLearnForge audit, Nov 2026
+# Midline audit, Nov 2026
 
 Two reviewers: an instructional designer who builds compliance and training courses and has to get them through an LMS, and a Storyline engineer who lives in triggers, variables, states and layers. I ran the editor, clicked through the demo course, and read the tracking, engine and runtime code. Type-check is clean and there were no console errors on load.
 

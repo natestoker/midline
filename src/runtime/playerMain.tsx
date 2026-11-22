@@ -15,7 +15,7 @@ declare global {
 
 // player.html: proves the runtime runs standalone in a browser tab (brief
 // requirement). Loads the project from the editor handoff key, or from a
-// .elearnforge.json file picked by the user.
+// .midline.json (or older .elearnforge.json) file picked by the user.
 
 import { PREVIEW_KEY } from './previewKey';
 
@@ -27,7 +27,7 @@ function loadEmbedded(): Project | null {
   try {
     return JSON.parse(el.textContent) as Project;
   } catch (err) {
-    console.error('eLearnForge: embedded project JSON is invalid', err);
+    console.error('Midline: embedded project JSON is invalid', err);
     return null;
   }
 }
@@ -54,7 +54,7 @@ function StandalonePlayer() {
   if (!project) {
     return (
       <div className="player-empty">
-        <h1>eLearnForge Player</h1>
+        <h1>Midline Player</h1>
         <p>No project handed off from the editor. Load a project file to play it.</p>
         <label className="btn btn-accent btn-file">
           Load project JSON

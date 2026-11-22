@@ -149,7 +149,7 @@ export function Player({ project, adapter, startSlideId, debug }: {
       adapter?.saveResume(runtime.exportResume());
       adapter?.terminate();
     } catch (err) {
-      console.warn('eLearnForge exit failed to reach the host', err);
+      console.warn('Midline exit failed to reach the host', err);
     }
     setExited(true);
     try { window.close(); } catch { /* not allowed; the end screen covers it */ }

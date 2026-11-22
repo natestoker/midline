@@ -22,7 +22,7 @@ import { md5 } from './md5';
 // - Positions are slide pixels (loc l/t/r/b); times are milliseconds.
 // - Each shape, layer and slide has a GUID ("g"); triggers refer to those.
 // This is an editable approximation, like the PowerPoint import. Anything
-// with no eLearnForge equivalent is kept as a JavaScript trigger that says
+// with no Midline equivalent is kept as a JavaScript trigger that says
 // what the original did, and listed in the warnings.
 
 const PT_TO_PX = 4 / 3;
@@ -360,7 +360,7 @@ function stateStylesOf(shape: Element, theme: Theme, fonts: Set<string>): Partia
 
 // ---------- questions as native blocks ----------
 // Storyline's form questions (and the freeform ones that are not a plain
-// pick) carry their answers as data, so they come across as eLearnForge's own
+// pick) carry their answers as data, so they come across as Midline's own
 // quiz blocks. The Storyline shapes that drew them are dropped in favour of
 // the block.
 const PICK_FORMS: Record<string, boolean> = { trueFalseIntr: false, multiChoiceIntr: false, whichWordIntr: false, multiRespIntr: true };

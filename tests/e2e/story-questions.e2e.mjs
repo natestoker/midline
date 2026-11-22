@@ -1,6 +1,6 @@
 // Open Storyline (.story): the built-in question types and a result slide.
 // A small package in the shape Storyline writes: form questions carry their
-// answers as data, so they should arrive as eLearnForge quiz blocks that play.
+// answers as data, so they should arrive as Midline quiz blocks that play.
 import { createRequire } from 'node:module';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

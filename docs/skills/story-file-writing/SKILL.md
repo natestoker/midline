@@ -10,7 +10,7 @@ Storyline 360 (3.129 and 3.130). Storyline gives no detail when it rejects a
 file, so each rule below cost a round trip. Read `story-file-internals` first
 for the layout of the package and the meaning of the slide XML.
 
-A working implementation is in the eLearnForge repo:
+A working implementation is in the Midline repo:
 `src/publish/storyExport.ts` (write), `src/publish/storyImport.ts` (read),
 `src/publish/storyQuizTemplates.ts` (question objects), `src/publish/md5.ts`.
 

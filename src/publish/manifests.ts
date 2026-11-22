@@ -98,7 +98,7 @@ export function tincanXml(title: string, activityId: string): string {
   <activities>
     <activity id="${esc(activityId)}" type="http://adlnet.gov/expapi/activities/course">
       <name>${esc(title)}</name>
-      <description lang="en-US">${esc(title)} - published with eLearnForge</description>
+      <description lang="en-US">${esc(title)} - published with Midline</description>
       <launch lang="en-US">index.html</launch>
     </activity>
   </activities>

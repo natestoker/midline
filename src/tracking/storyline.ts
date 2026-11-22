@@ -17,7 +17,7 @@ export class StorylineAdapter implements TrackingAdapter {
     try {
       window.parent?.postMessage({ source: 'elearnforge', event, payload }, '*');
     } catch (err) {
-      console.warn('eLearnForge Storyline postMessage failed', err);
+      console.warn('Midline Storyline postMessage failed', err);
     }
   }
 

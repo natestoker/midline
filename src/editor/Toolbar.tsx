@@ -138,7 +138,7 @@ export function Toolbar({ saveState }: { saveState: 'saved' | 'saving' }) {
     <header className="toolbar">
       <div className="brand">
         <span className="brand-mark">eF</span>
-        <span className="brand-name">eLearnForge</span>
+        <span className="brand-name">Midline</span>
         <input
           className="input title-input"
           value={project.title}
@@ -209,7 +209,7 @@ export function Toolbar({ saveState }: { saveState: 'saved' | 'saving' }) {
               {folderModeAvailable() && (
                 <button
                   className="menu-item"
-                  title="Pick a folder once; Save then writes <title>.elearnforge.json there with no prompts at all"
+                  title="Pick a folder once; Save then writes <title>.midline.json there with no prompts at all"
                   onClick={async () => {
                     close();
                     if (await chooseProjectFolder()) void exportProjectJson(project);

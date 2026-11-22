@@ -1,5 +1,5 @@
  
- eLearnForge · redesign pass · 44 screens reviewed
+ Midline · redesign pass · 44 screens reviewed
  Tokens, one dialog pattern, a ribbon that fits, and a phone player that reflows
  Each change names the file from COMPONENTS.md it lands in. The mock-ups below are built on the proposed tokens and read the five accent variables, so the Accent tweak recolours everything except the semantic colours. Tabs in the mock-ups are clickable.
  Ranking 1 Tokens 2 Dialogs 3 Ribbon 4 Phone player 5 Everything else 
@@ -151,7 +151,7 @@ Icon, what the thing is for in one sentence, primary action, one shortcut action
  The ribbon holds commands. Forms move to the inspector.
  The test: a ribbon control does something once (insert, align, apply a preset). Anything that shows a stored value you read back and edit (name, size, duration, nav overrides) is a form and lives in the right panel. Seven tabs become four, on a 96px shelf where every tab fits at 1280px. Overflow is not allowed: when the window is narrower, the last group collapses into a More menu. Triggers and Variables stop being ribbon tabs and become tabs of the right panel, where their UI already is.
  eF
- eLearnForge 
+ Midline 
  Phishing Awareness
  Saved 
  Course

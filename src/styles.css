@@ -19,7 +19,7 @@
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 }
 
-/* eLearnForge - editor chrome follows the house tool style:
+/* Midline - editor chrome follows the house tool style:
    dark, JetBrains Mono, mint accent #3ddc97.
    The stage (learner-facing content) is a light surface with a neutral sans,
    because the course, not the tool, owns that surface. */

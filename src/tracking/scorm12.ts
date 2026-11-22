@@ -40,7 +40,7 @@ export class Scorm12Adapter implements TrackingAdapter {
   private call<T>(fn: () => T): T | null {
     if (!this.api || this.terminated) return null;
     try { return fn(); } catch (err) {
-      console.warn('eLearnForge SCORM 1.2 call failed', err);
+      console.warn('Midline SCORM 1.2 call failed', err);
       return null;
     }
   }
@@ -48,7 +48,7 @@ export class Scorm12Adapter implements TrackingAdapter {
   initialize(): ResumeData | null {
     this.api = findApi();
     if (!this.api) {
-      console.warn('eLearnForge: no SCORM 1.2 API found; running untracked.');
+      console.warn('Midline: no SCORM 1.2 API found; running untracked.');
       return null;
     }
     this.call(() => this.api!.LMSInitialize(''));
