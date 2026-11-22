@@ -1,5 +1,8 @@
 # Midline
 
+**Status: alpha.** An early release for people who want to try it and report
+what breaks. Formats and features can still change.
+
 Formerly eLearnForge. The repository and a few internal storage names still
 use the old name so nothing saved before the rename is lost.
 

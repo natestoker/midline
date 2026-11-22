@@ -4,7 +4,7 @@ Status: draft, not published. `[LINK]` is the live URL. Replace it before postin
 
 ---
 
-## I built a course authoring tool that opens Storyline files. Here's an early look.
+## I built a course authoring tool that opens Storyline files. The alpha is live.
 
 I've been building eLearning in Storyline and Rise for years, and I keep
 running into the same wall. Rise is quick but you can't move anything.
@@ -12,7 +12,7 @@ Storyline lets you move everything but a simple page takes an afternoon. Most
 real courses need some of each.
 
 So I built the tool I wanted. It's called Midline, it runs in a browser, and
-today I'm putting an early version up for anyone to try.
+today I'm putting the alpha up for anyone to try.
 
 ### What it is
 
@@ -55,7 +55,9 @@ it rejects a file, so each rule was found by opening test files one at a time.
 
 ### What's not done
 
-This is a preview, and I'd rather tell you now than have you find out.
+This is an alpha, and I'd rather tell you now than have you find out. Things
+will change, some things will break, and you should keep a copy of your
+project file as you work.
 
 - Saving to Storyline doesn't yet write result slides, fill-in-the-blank
   questions, video, flashcards or scenarios. Those come out as a labelled

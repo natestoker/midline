@@ -32,7 +32,7 @@ export function DesktopGate() {
   return (
     <div className="desktop-gate" role="dialog" aria-label="Desktop recommended">
       <div className="desktop-gate-card">
-        <span className="brand-mark" aria-hidden="true">eF</span>
+        <span className="brand-mark" aria-hidden="true">M</span>
         <h1>Best on a bigger screen</h1>
         <p>
           The Midline <b>editor</b> — canvas, timeline, and panels — needs a

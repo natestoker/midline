@@ -537,6 +537,13 @@ button { font-family: inherit; }
 }
 
 .brand-name { font-size: var(--fs-md); font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; }
+/* Release stage beside the name. */
+.brand-stage {
+  font-size: var(--fs-micro); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 1px 6px; border-radius: var(--r-pill);
+  color: var(--accent); border: 1px solid currentColor; white-space: nowrap;
+}
+.welcome-stage { display: flex; align-items: center; justify-content: center; gap: 8px; }
 
 .title-input {
   width: 200px;

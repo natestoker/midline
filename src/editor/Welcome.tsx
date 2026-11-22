@@ -57,9 +57,10 @@ export function Welcome() {
       <div className="welcome" ref={ref} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Welcome to Midline">
         <button className="cs-icon-btn welcome-close" onClick={close} aria-label="Close" title="Close"><Lucide name="x" size={18} /></button>
         <div className="welcome-head">
-          <span className="brand-mark" aria-hidden="true">eF</span>
+          <span className="brand-mark" aria-hidden="true">M</span>
           <h1>Welcome to Midline</h1>
           <p>Build interactive courses in your browser. Everything stays on your machine.</p>
+          <p className="welcome-stage"><span className="brand-stage">Alpha</span> An early release. Expect rough edges, and save a copy of your project file as you go.</p>
         </div>
         <div className="welcome-steps">
           {STEPS.map((s, i) => (

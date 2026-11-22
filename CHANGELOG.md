@@ -1886,3 +1886,5 @@ Large-media "Compress" is not built; the check only warns.
 - Nothing saved is lost: browser storage, resume data and the Storyline and
   Rise bridges keep their existing internal names, so projects, settings and
   courses published before the rename carry on working.
+
+- Marked as **alpha** in the editor, the welcome screen and the README.

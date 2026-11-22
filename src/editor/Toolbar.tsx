@@ -137,8 +137,9 @@ export function Toolbar({ saveState }: { saveState: 'saved' | 'saving' }) {
   return (
     <header className="toolbar">
       <div className="brand">
-        <span className="brand-mark">eF</span>
+        <span className="brand-mark">M</span>
         <span className="brand-name">Midline</span>
+        <span className="brand-stage" title="Alpha: an early release. Expect rough edges, and keep a copy of your project file.">Alpha</span>
         <input
           className="input title-input"
           value={project.title}
