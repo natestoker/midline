@@ -1,6 +1,6 @@
 # DRAFT: blog post
 
-Status: draft, not published. `[LINK]` is the live URL. Replace it before posting.
+Status: draft, not published. Check the live link below opens before posting.
 
 ---
 
@@ -74,7 +74,7 @@ across.
 
 ### Try it
 
-It's here: [LINK]
+It's here: https://natestoker.github.io/midline/
 
 Load the demo course from the welcome screen, click around, and publish it.
 If you have a Storyline file you don't mind experimenting with, open it and

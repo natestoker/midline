@@ -1,6 +1,6 @@
 # DRAFT: LinkedIn post
 
-Status: draft, not posted. `[LINK]` is the live URL. Replace it before posting.
+Status: draft, not posted. Check the live link below opens before posting.
 
 ---
 
@@ -24,7 +24,7 @@ It's an alpha, so expect rough edges and some things that don't convert yet (res
 the way out to Storyline, for two). The tool tells you what it couldn't carry
 across every time.
 
-Try it here: [LINK]
+Try it here: https://natestoker.github.io/midline/
 
 If you build courses for a living, I'd like to know what breaks.
 

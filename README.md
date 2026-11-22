@@ -3,8 +3,10 @@
 **Status: alpha.** An early release for people who want to try it and report
 what breaks. Formats and features can still change.
 
-Formerly eLearnForge. The repository and a few internal storage names still
-use the old name so nothing saved before the rename is lost.
+Formerly eLearnForge. A few internal storage names still use the old name so
+nothing saved before the rename is lost.
+
+Live: https://natestoker.github.io/midline/ · Source: https://github.com/natestoker/midline
 
 A browser authoring tool for interactive e-learning: Rise-style content blocks
 on a Storyline-style canvas with layers, a timeline and a trigger engine.
