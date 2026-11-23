@@ -4,7 +4,7 @@ import { STORY_SHELL_BASE64 } from './storyShell';
 import { md5 } from './md5';
 import { encodeMp3 } from '../editor/audioBake';
 import { textEntryVariableName } from '../schema/factory';
-import { DRAG_DROP_INTR, FREE_TEXT_CHOICE, FREE_TEXT_INTR, PICK_MANY_INTR, PICK_ONE_INTR, RESULTS_INTR, TEXT_ENTRY_FIELD } from './storyQuizTemplates';
+import { DRAG_DROP_INTR, FREE_TEXT_CHOICE, FREE_TEXT_INTR, PICK_MANY_INTR, PICK_ONE_INTR, RESULTS_INTR, TEXT_ENTRY_FIELD, VIDEO_OBJECT } from './storyQuizTemplates';
 
 // Save a project as an Articulate Storyline 360 file.
 //
@@ -199,6 +199,8 @@ interface Ctx {
   slideMedia: Set<string>; // media files used by the slide being written
   audio: Map<string, AudioAsset>; // by hash of the MP3
   blockAudio: Map<string, AudioAsset>; // audio resolved for the slide being written, by block id
+  videos: Map<string, VideoAsset>; // by hash of the MP4
+  blockVideo: Map<string, VideoAsset>;
   question: { layers: string } | null; // the quiz question on the slide being written, if any
   extraLayers: string;   // layers made for tabs on this slide
   addedLayers: number;   // how many layers this slide has gained
@@ -220,6 +222,13 @@ interface Ctx {
 interface AudioAsset {
   g: string; file: string; bytes: Uint8Array; hash: string; name: string;
   ms: number; sampleCnt: number; rate: number;
+  vtt: { g: string; file: string; bytes: Uint8Array; hash: string; name: string } | null;
+}
+// One video as Storyline stores it: MP4 bytes in a .mpeg file, its size and
+// length, a poster picture and an optional caption file.
+interface VideoAsset {
+  g: string; file: string; bytes: Uint8Array; hash: string; name: string;
+  ms: number; w: number; h: number; thumbG: string | null;
   vtt: { g: string; file: string; bytes: Uint8Array; hash: string; name: string } | null;
 }
 const warn = (ctx: Ctx, msg: string) => ctx.warnings.set(msg, (ctx.warnings.get(msg) ?? 0) + 1);
@@ -358,6 +367,71 @@ async function audioFor(ctx: Ctx, src: string, name: string, captions: string | 
   }
 }
 
+// ---------- video ----------
+// Storyline plays MP4. Other formats cannot be converted in the browser, so
+// they are left for the author to re-insert.
+async function videoFor(ctx: Ctx, src: string, name: string, captions: string | null): Promise<VideoAsset | null> {
+  try {
+    const bytes = new Uint8Array(await (await fetch(src)).arrayBuffer());
+    // An MP4 starts with a box whose type, at byte 4, is "ftyp".
+    if (!(bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70)) return null;
+    const hash = md5(bytes);
+    let v = ctx.videos.get(hash);
+    if (!v) {
+      const el = document.createElement('video');
+      el.muted = true; el.preload = 'auto'; el.playsInline = true;
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'video/mp4' }));
+      let thumb: string | null = null;
+      try {
+        await new Promise<void>((res, rej) => { el.onloadedmetadata = () => res(); el.onerror = () => rej(new Error('video')); el.src = url; });
+        // A poster from just inside the clip, since frame 0 is often black.
+        await new Promise<void>((res) => { el.onseeked = () => res(); setTimeout(res, 3000); el.currentTime = Math.min(0.5, (el.duration || 1) / 2); });
+        const c = document.createElement('canvas');
+        c.width = el.videoWidth || 640; c.height = el.videoHeight || 360;
+        c.getContext('2d')!.drawImage(el, 0, 0, c.width, c.height);
+        thumb = c.toDataURL('image/png');
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+      const g = guid();
+      const clean = name.replace(/[\\/:*?"<>|]/g, '_').replace(/\.mp4$/i, '') || 'Video';
+      let vtt: VideoAsset['vtt'] = null;
+      if (captions?.trim()) {
+        const vb = new TextEncoder().encode(`\uFEFF${captions.replace(/^\uFEFF/, '').replace(/\r?\n/g, '\r\n')}`);
+        const vg = guid();
+        vtt = { g: vg, file: `${partId(vg)}.vtt`, bytes: vb, hash: md5(vb), name: `${clean}.vtt` };
+      }
+      v = { g, file: `${partId(g)}.mpeg`, bytes, hash, name: `${clean}.mp4`, ms: Math.max(250, Math.round((el.duration || 1) * 1000)), w: el.videoWidth || 640, h: el.videoHeight || 360, thumbG: null, vtt };
+      if (thumb) v.thumbG = await mediaFor(ctx, thumb, `${clean} poster`);
+      ctx.videos.set(hash, v);
+    } else if (v.thumbG) {
+      // The poster has to be listed on every slide that uses the video.
+      const poster = [...ctx.media.values()].find((m) => m.g === v!.thumbG);
+      if (poster) ctx.slideMedia.add(poster.file);
+    }
+    ctx.slideMedia.add(v.file);
+    if (v.vtt) ctx.slideMedia.add(v.vtt.file);
+    return v;
+  } catch {
+    return null;
+  }
+}
+
+function videoXml(ctx: Ctx, b: Block, v: VideoAsset, z: number): string {
+  const p = b.props as unknown as { controls?: boolean; loop?: boolean };
+  const start = Math.max(0, Math.round((b.timing?.start ?? 0) * 1000));
+  return VIDEO_OBJECT
+    .replace(/ (g|verG)="[0-9a-f-]{36}"/g, (_m, key) => ` ${key}="${guid()}"`)
+    .replace('@@G@@', ctx.blockG.get(b.id)!).replace('@@NAME@@', xa(b.name || 'Video')).replace('@@Z@@', String(z))
+    .replace('@@ASSET@@', v.g).replace('@@ANS@@', guid()).replace('@@SRC@@', v.g).replace('@@THUMB@@', v.thumbG ?? ZERO)
+    .replace('@@CC@@', v.vtt ? ` ccG="${v.vtt.g}"` : '')
+    .replace('@@CTRLS@@', p.controls ? 'true' : 'false').replace('@@LOOP@@', p.loop ? 'true' : 'false')
+    .replace('@@START@@', String(start)).replace(/@@DUR@@/g, String(v.ms))
+    .replace('@@W@@', String(ctx.w)).replace('@@H@@', String(ctx.h))
+    .replace('@@L@@', n(b.x)).replace('@@T@@', n(b.y)).replace('@@R@@', n(b.x + b.w)).replace('@@B@@', n(b.y + b.h))
+    .replace('@@VW@@', String(v.w)).replace('@@VH@@', String(v.h));
+}
+
 // The sound object on a slide or layer: off-stage at the bottom left, the way
 // Storyline places it.
 function soundXml(ctx: Ctx, a: AudioAsset, z: number, startMs: number): string {
@@ -378,6 +452,15 @@ async function prepareAudio(ctx: Ctx, layer: Layer, captions: string | null): Pr
     if (!a) { warn(ctx, 'an audio clip could not be read and was left out'); continue; }
     ctx.blockAudio.set(b.id, a);
     end = Math.max(end, Math.round((b.timing?.start ?? 0) * 1000) + a.ms);
+  }
+  for (const b of flatBlocks(layer.blocks)) {
+    if (b.type !== 'video') continue;
+    const vp = b.props as unknown as { src?: string; captionsVtt?: string };
+    if (!vp.src) continue;
+    const v = await videoFor(ctx, vp.src, b.name || 'Video', vp.captionsVtt ?? null);
+    if (!v) { warn(ctx, 'a video is not MP4 (or could not be read) and was left as an outlined box; insert it again in Storyline'); continue; }
+    ctx.blockVideo.set(b.id, v);
+    end = Math.max(end, Math.round((b.timing?.start ?? 0) * 1000) + v.ms);
   }
   return end;
 }
@@ -1147,6 +1230,8 @@ async function shapeList(ctx: Ctx, layer: Layer, totalMs: number, blockTrigs: Ma
       ctx.addedLayers += 2;
       continue;
     }
+    const vid = ctx.blockVideo.get(b.id);
+    if (vid) { out += videoXml(ctx, b, vid, z++); continue; }
     if (b.type === 'checklist') {
       const c = checklistXml(ctx, b, z, totalMs);
       out += c.shapes; z += c.count;
@@ -1201,7 +1286,7 @@ async function shapeList(ctx: Ctx, layer: Layer, totalMs: number, blockTrigs: Ma
 
 async function slideXml(ctx: Ctx, slide: Slide, layoutG: string): Promise<string> {
   const g = ctx.slideG.get(slide.id)!;
-  ctx.blockAudio = new Map();
+  ctx.blockAudio = new Map(); ctx.blockVideo = new Map();
   const audioEnd = await prepareAudio(ctx, slide.layers[0], slide.timeline?.captionsVtt ?? null);
   const totalMs = Math.max(5000, Math.round((slide.timeline?.duration ?? 5) * 1000), audioEnd);
   const { slideTrigs, layerTrigs, blockTrigs, customNext } = sortTriggers(ctx, slide);
@@ -1234,7 +1319,7 @@ export async function exportStory(project: Project): Promise<StoryExportResult> 
   const first = project.slides[0];
   const ctx: Ctx = {
     project, w: first?.width ?? 1280, h: first?.height ?? 720, warnings: new Map(),
-    slideG: new Map(), layerG: new Map(), blockG: new Map(), varG: new Map(), media: new Map(), slideMedia: new Set(), audio: new Map(), blockAudio: new Map(), question: null, extraLayers: '', addedLayers: 0, showOnStart: [], quiz: null, hasResults: false, questionSlides: [], resultTrigs: '', isResultSlide: false, extraVars: [], needsScore: false, scoreG: guid(), questionCount: 0
+    slideG: new Map(), layerG: new Map(), blockG: new Map(), varG: new Map(), media: new Map(), slideMedia: new Set(), audio: new Map(), blockAudio: new Map(), videos: new Map(), blockVideo: new Map(), question: null, extraLayers: '', addedLayers: 0, showOnStart: [], quiz: null, hasResults: false, questionSlides: [], resultTrigs: '', isResultSlide: false, extraVars: [], needsScore: false, scoreG: guid(), questionCount: 0
   };
   for (const s of project.slides) {
     ctx.slideG.set(s.id, guid());
@@ -1286,6 +1371,7 @@ export async function exportStory(project: Project): Promise<StoryExportResult> 
   }
   for (const m of ctx.media.values()) put(`story/media/${m.file}`, m.bytes);
   for (const a of ctx.audio.values()) { put(`story/media/${a.file}`, a.bytes); if (a.vtt) put(`story/media/${a.vtt.file}`, a.vtt.bytes); }
+  for (const v of ctx.videos.values()) { put(`story/media/${v.file}`, v.bytes); if (v.vtt) put(`story/media/${v.vtt.file}`, v.vtt.bytes); }
 
   // story.xml: variables, media list, slide order, menu entries, slide size.
   let story = await read('story/story.xml');
@@ -1337,7 +1423,15 @@ export async function exportStory(project: Project): Promise<StoryExportResult> 
     const cc = c.vtt ? ` ClosedCaptionsAssetGuid="${c.vtt.g}" hasClosedCaptions="true"` : ' hasClosedCaptions="false"';
     return `<audio g="${c.g}" verG="${guid()}" type="Mp3" displayName="${xa(c.name)}" origFile="${file}" source="${file}" useCnt="0" bytes="${c.bytes.length}" modDT="${now}" addDT="${now}"${cc} origBytes="${c.bytes.length}" origModDT="${now}"><langAltText /><md5Checksum><stream>${c.hash}</stream><source>${c.hash}</source></md5Checksum><props valid="true" file="${file.replace(/\.mp3$/, '.wav')}" bytes="${c.sampleCnt * 2 + 78}" channels="1" samples="${c.rate}" bits="${c.sampleCnt * 2}" sampleCnt="${c.sampleCnt}" startPt="78" mp3="false" origFile="${file}" /></audio>`;
   }).join('');
-  const mediaXml = pictureXml + vttXml + audioXml;
+  const vids = [...ctx.videos.values()];
+  const vidVttXml = vids.filter((c) => c.vtt).map((c) =>
+    `<media g="${c.vtt!.g}" verG="${guid()}" type="Vtt" displayName="${xa(c.vtt!.name)}" origFile="C:\\Midline\\${xa(c.vtt!.name)}" source="C:\\Midline\\${xa(c.vtt!.name)}" useCnt="0" bytes="${c.vtt!.bytes.length}" modDT="${now}" addDT="${now}"><md5Checksum><stream>${c.vtt!.hash}</stream><source>${c.vtt!.hash}</source></md5Checksum></media>`).join('');
+  const videoXmlList = vids.map((c) => {
+    const file = `C:\\Midline\\${xa(c.name)}`;
+    const cc = c.vtt ? ` ClosedCaptionsAssetGuid="${c.vtt.g}" hasClosedCaptions="true"` : ' hasClosedCaptions="false"';
+    return `<video g="${c.g}" verG="${guid()}" type="Mp4" displayName="${xa(c.name)}" origFile="${file}" source="${file}" useCnt="0" bytes="${c.bytes.length}" modDT="${now}" addDT="${now}"${cc} altFormatG="${ZERO}" as="as3" origModDt="${now}" origBytes="${c.bytes.length}" compressedOnInsert="false"><userState w="${c.w}" h="${c.h}" /><md5Checksum><stream>${c.hash}</stream><source>${c.hash}</source></md5Checksum></video>`;
+  }).join('');
+  const mediaXml = pictureXml + vttXml + vidVttXml + audioXml + videoXmlList;
   story = story.replace('<mediaLst><mediaLst /></mediaLst>', mediaXml ? `<mediaLst><mediaLst>${mediaXml}</mediaLst></mediaLst>` : '<mediaLst><mediaLst /></mediaLst>');
   // Storyline lists every asset twice: in story.xml and in the theme.
   if (mediaXml) {
@@ -1359,7 +1453,8 @@ export async function exportStory(project: Project): Promise<StoryExportResult> 
   types = types.replace('<Override PartName="/story/slides/slide.xml" ContentType="application/slide+xml" />', overrides);
   const addType = (ext: string, type: string) => { if (!types.includes(`Extension="${ext}"`)) types = types.replace('<Default Extension="jpg" ContentType="image/jpeg" />', `<Default Extension="jpg" ContentType="image/jpeg" /><Default Extension="${ext}" ContentType="${type}" />`); };
   if (ctx.audio.size) addType('mp3', 'audio/mp3');
-  if ([...ctx.audio.values()].some((a) => a.vtt)) addType('vtt', 'text/vtt');
+  if ([...ctx.audio.values()].some((a) => a.vtt) || [...ctx.videos.values()].some((v) => v.vtt)) addType('vtt', 'text/vtt');
+  if (ctx.videos.size) addType('mpeg', 'video/mpeg');
   if (ctx.media.size && !types.includes('Extension="png"')) {
     types = types.replace('<Default Extension="jpg" ContentType="image/jpeg" />', '<Default Extension="jpg" ContentType="image/jpeg" /><Default Extension="png" ContentType="image/png" />');
   }

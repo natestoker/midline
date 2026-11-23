@@ -93,9 +93,10 @@ before touching `storyImport.ts` or `storyExport.ts`.
   Many and Drag and Drop questions. Tabs become a button and a layer per
   panel.
 - Audio is written as MP3 plus captions (confirmed in Storyline).
-- Fill-in, result slides, flashcards, checklist, scenario, labelled graphic
-  and text entry are written (v6.42) but not yet confirmed in Storyline.
-- **Not written yet:** video, slider, timer, code.
+- Fill-in, result slides, flashcards, checklist, scenario, labelled graphic,
+  text entry and video (MP4) are written (v6.42) but not yet confirmed in
+  Storyline.
+- **Not written yet:** slider, timer, code.
 - Font sizes scale with slide width on both sides
   (`pt = px * 0.75 * 960 / slideWidth`).
 - Client `.story` files are real courses. Keep them out of the repo.

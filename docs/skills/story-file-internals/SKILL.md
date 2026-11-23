@@ -145,6 +145,10 @@ This XML is the **ground truth** for validating any runtime variable classifier 
 
 **Result slides**: `rsltsIntr` with `quizG`. `story.xml` `<quizMgr><quizLst><quiz passScore scorePct scorePoints passPct passPoints resultSldG>` names the built-in variables (`Quiz1.ScorePercent` and so on, `type="prop"`). The Success and Failure layers are shown by `OnStart` triggers whose `<trigCond dataType="var" varG=score varG2=pass>` compares two variables.
 
+**Video**: MP4 bytes are stored in a file named `<partId>.mpeg` (content type `video/mpeg`). story.xml and theme.xml list a `<video type="Mp4" ... as="as3" compressedOnInsert><userState w h/><md5Checksum>` asset. The slide object is `<video assetG srcG thumbG ccG showCtrls loop play>` with `<vidTmCtx start dur untilEnd="true">` and `<movie dur fps><sz w h/></movie>`; `thumbG` is a PNG media asset used as the poster. An edited video has two assets: `assetG` is the edited copy (with `<encPkg>` trim settings) and `srcG` the original. A `<video>` whose `vidG`, `thumbG` and `srcG` are all zeros and has no `assetG` is an empty placeholder, not a video.
+
+**Text entry**: `<textEntry createVarG="text variable g">` carries its own `<textEntryTrig event="OnLostFocus" action="adjustVar">` that writes the typed text to that variable. A freeform fill-in question is `freeTextEntryIntr textEntryG="field g"`.
+
 **Audio**: story.xml `<audio type="Mp3" ClosedCaptionsAssetGuid hasClosedCaptions>` with `<props>` describing the mono 16-bit WAV it decodes to (`sampleCnt`, `bits` = sampleCnt x 2, `bytes` = bits + 78, `startPt="78"`); captions are a `<media type="Vtt">`. On the slide: `<sound assetG>` (or `<aisound>` for AI voice) with `<sndTmCtx start dur>` and `<sndProps ccG>`, placed off-stage at the bottom left. The slide's `tmProps min` covers the audio.
 
 **Slide background**: `<bg>` on the slide normally holds only defaults; real backgrounds come from the master or from a full-slide shape or picture on the base layer.

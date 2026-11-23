@@ -99,8 +99,6 @@ Quiz and Reset Quiz.
 
 ## Not converted yet
 
-- Video narration timing has only been checked on files without media;
-  video objects import, but treat them as unverified.
 - Question banks, numeric questions that use a range, and picture-only drag
   items (those stay as their original shapes).
 - Sliders, dials, scrolling panels, web objects: a labelled outline marks
@@ -170,8 +168,9 @@ Other blocks:
 | Scenario | A layer per passage, a button per choice; an ending choice goes to the next slide |
 | Labelled graphic | The picture, a numbered marker per pin, and a layer per pin with its card |
 | Text entry | A Storyline text-entry field writing to a text variable |
+| Video | A Storyline video with a poster frame and captions. MP4 only; other formats stay an outlined box |
 
-These five and the two above are written from forms found in real Storyline
+These and the two above are written from forms found in real Storyline
 files but have not yet been opened in Storyline.
 
 **Tabs and accordions** become a button per panel and a layer

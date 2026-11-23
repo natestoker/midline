@@ -284,7 +284,9 @@ interface Ctx {
 
 const MIME: Record<string, string> = {
   png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', svg: 'image/svg+xml', webp: 'image/webp', bmp: 'image/bmp',
-  mp3: 'audio/mpeg', m4a: 'audio/mp4', wav: 'audio/wav', ogg: 'audio/ogg', mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime'
+  mp3: 'audio/mpeg', m4a: 'audio/mp4', wav: 'audio/wav', ogg: 'audio/ogg', mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime',
+  // Storyline keeps its MP4 video in files named .mpeg.
+  mpeg: 'video/mp4'
 };
 async function mediaDataUrl(ctx: Ctx, assetG: string | null | undefined): Promise<string | null> {
   if (!assetG) return null;
@@ -626,7 +628,12 @@ async function importShapes(
     } else if (tag === 'video' || tag === 'audio' || tag === 'sound') {
       const src = await mediaDataUrl(ctx, shape.getAttribute('assetG'));
       if (!src) ctx.note(slideName, `${tag} "${name ?? ''}" has no media file in the package`);
-      else if (tag === 'video') made.push({ id: uid('blk'), type: 'video', ...box, ...common, props: { src, controls: false, autoplay: true, loop: false } } as Block);
+      else if (tag === 'video') {
+        const vcPath = ctx.mediaByAsset.get(shape.getAttribute('ccG') ?? '');
+        const vc = vcPath ? await ctx.zip.file(vcPath)?.async('string') : null;
+        const captionsVtt = vc && /-->/.test(vc) ? vc.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n') : undefined;
+        made.push({ id: uid('blk'), type: 'video', ...box, ...common, props: { src, controls: shape.getAttribute('showCtrls') === 'true', autoplay: shape.getAttribute('play') !== 'click', loop: shape.getAttribute('loop') === 'true', ...(captionsVtt ? { captionsVtt } : {}) } } as Block);
+      }
       else if (tag === 'sound') {
         // Captions travel as a WebVTT file the sound points at.
         const ccPath = ctx.mediaByAsset.get(kid(shape, 'sndProps')?.getAttribute('ccG') ?? '');
@@ -1077,7 +1084,7 @@ export async function importStory(file: File | Blob, fileName = 'course.story'):
   // Media: checksum -> file, then asset id -> checksum.
   const byHash = new Map<string, string>();
   for (const path of Object.keys(zip.files)) {
-    if (!/^story\/media\/[^/]+\.(png|jpe?g|gif|svg|webp|bmp|mp3|m4a|wav|ogg|mp4|webm|mov|vtt)$/i.test(path)) continue;
+    if (!/^story\/media\/[^/]+\.(png|jpe?g|gif|svg|webp|bmp|mp3|m4a|wav|ogg|mp4|mpeg|webm|mov|vtt)$/i.test(path)) continue;
     byHash.set(md5(await zip.file(path)!.async('uint8array')), path);
   }
   const mediaEls = ['media', 'svgasset', 'audio', 'video'].flatMap((tag) => Array.from(story.getElementsByTagName(tag)));
