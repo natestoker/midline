@@ -1927,3 +1927,19 @@ Found by taking the Arcade quiz template through Midline slide by slide.
 - **Converted quiz blocks are sized for the slide.** A block can now carry a
   content scale, so its text is readable on a 1920-wide slide, and it is given
   room for its rows and Check button.
+
+# v6.44
+
+## Open Storyline: fewer things left for the report
+Found by running two larger courses through the import; the notes on one
+dropped from 65 to 9, on the other from 26 to 7.
+- **Arrows and connectors** import as lines with their direction and line
+  ends (triangle, oval, diamond and so on). They were outlined placeholders.
+  Lines drawn right to left or bottom to top no longer collapse to a dot.
+- **Next and Previous button states.** "Change state of Next to Disabled /
+  Normal" becomes the enable or disable player button action. These were
+  kept as JavaScript notes ("Normal is a custom state").
+- **A question with no feedback layers** is still graded on Submit and then
+  moves to the next slide. Before, Submit did nothing.
+- **Corner shapes** under Storyline's short names (`roundDiagCorner`,
+  `snipDiagCorner` and the rest) map to their nearest shape without a note.

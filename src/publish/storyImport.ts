@@ -1,8 +1,7 @@
 import JSZip from 'jszip';
 import type {
   Action, AnimDirection, AnimSpec, Block, BlockState, BlockTiming, Condition, ConditionOperator,
-  Layer, Project, Slide, SlideBackground, StateStyle, StyledState, Trigger, Variable, VariableValue
-} from '../schema/types';
+  Layer, Project, Slide, SlideBackground, StateStyle, StyledState, Trigger, Variable, VariableValue, LineEnd } from '../schema/types';
 import { createLayer, uid } from '../schema/factory';
 import { PRSTGEOM_TO_KIND } from '../blocks/shape/geometry';
 import { md5 } from './md5';
@@ -313,7 +312,15 @@ const SHAPE_TAGS: Record<string, string> = {
   heart: 'heart', cloud: 'cloud', plus: 'plus',
   // Corner variants with no exact match land as their nearest shape.
   snipSingleCorner: 'rect', snipSameSideCorner: 'rect', snipDiagonalCorner: 'rect',
-  roundSingleCorner: 'roundRect', roundSameSideCorner: 'roundRect', roundDiagonalCorner: 'roundRect'
+  roundSingleCorner: 'roundRect', roundSameSideCorner: 'roundRect', roundDiagonalCorner: 'roundRect',
+  snipSnglCorner: 'rect', snipSameCorner: 'rect', snipDiagCorner: 'rect', snipRoundCorner: 'rect',
+  roundSnglCorner: 'roundRect', roundSameCorner: 'roundRect', roundDiagCorner: 'roundRect'
+};
+
+// Ids Storyline uses for the player's own buttons in a change-state trigger.
+const PLAYER_BUTTONS: Record<string, 'next' | 'back'> = {
+  '0ec0db78-2e1d-4919-bde6-6824587f77c4': 'next',
+  'ae475cc5-601c-414e-82c1-df8dc7d39471': 'back'
 };
 
 const STATE_NAMES: Record<string, BlockState> = { normal: 'normal', visited: 'visited', selected: 'selected', disabled: 'disabled', hidden: 'hidden' };
@@ -698,13 +705,31 @@ async function importShapes(
           ...(text?.color ? { textColor: text.color } : {})
         }
       } as Block);
-    } else if (tag === 'line') {
+    } else if (tag === 'line' || tag === 'arrow') {
+      // A line runs from (l, t) to (r, b); either pair can be the larger,
+      // which is what gives it a direction.
       const paint = paintOf(shape, theme);
+      const loc = kid(shape, 'loc');
+      const x1 = num(loc, 'l'), y1 = num(loc, 't'), x2 = num(loc, 'r'), y2 = num(loc, 'b');
+      const flat = Math.abs(y2 - y1) < 1, upright = Math.abs(x2 - x1) < 1;
+      const lw = paint.borderWidth || 1;
+      const lx = Math.round(Math.min(x1, x2)), ly = Math.round(Math.min(y1, y2));
+      const w = Math.max(2, Math.round(Math.abs(x2 - x1))), h = Math.max(2, Math.round(Math.abs(y2 - y1)));
+      const px = (a: number, b2: number, thin: boolean) => (thin ? 50 : a <= b2 ? 0 : 100);
+      const ends = kid(kid(kid(shape, 'bG'), 'lineStyle'), 'arrow');
+      const endOf = (el: Element | null | undefined): LineEnd | undefined => {
+        const type = ({ triangle: 'triangle', stealth: 'stealth', arrow: 'open', open: 'open', oval: 'oval', diamond: 'diamond' } as Record<string, LineEnd['type']>)[el?.getAttribute('type') ?? ''];
+        if (!type) return undefined;
+        const n = Number((el?.getAttribute('sz') ?? '').replace('size', ''));
+        return { type, size: n >= 7 ? 'lg' : n >= 4 || !n ? 'md' : 'sm' };
+      };
+      const lineStart = endOf(kid(ends, 'begin')), lineEnd = endOf(kid(ends, 'end'));
       made.push({
-        id: uid('blk'), type: 'shape', ...box, w: Math.max(2, box.w), h: Math.max(2, box.h), ...common,
+        id: uid('blk'), type: 'shape', x: flat ? lx : upright ? lx - 1 : lx, y: flat ? ly - 1 : ly, w, h, ...common,
         props: {
-          kind: 'rectangle', fill: 'transparent', borderColor: paint.border ?? '#000000', borderWidth: paint.borderWidth || 1, cornerRadius: 0,
-          points: box.h <= 1 ? '0,50 100,50' : box.w <= 1 ? '50,0 50,100' : '0,0 100,100', isLine: true
+          kind: 'rectangle', fill: 'transparent', borderColor: paint.border ?? '#000000', borderWidth: lw, cornerRadius: 0,
+          points: `${px(x1, x2, upright)},${px(y1, y2, flat)} ${px(x2, x1, upright)},${px(y2, y1, flat)}`, isLine: true,
+          ...(lineStart ? { lineStart } : {}), ...(lineEnd ? { lineEnd } : {})
         }
       } as Block);
     } else if (tag === 'textBox' || SHAPE_TAGS[tag] || kid(shape, 'prstGeom')) {
@@ -887,6 +912,10 @@ function convertTrigger(
       const ids = targets(shapeEl?.getAttribute('setStateG'));
       const state = STATE_NAMES[(shapeEl?.getAttribute('setStateName') ?? '').toLowerCase()];
       if (ids.length && state) actions = ids.map((blockId) => ({ type: 'setState', blockId, state } as Action));
+      else if (!shapeEl?.getAttribute('setStateG') && PLAYER_BUTTONS[kid(data, 'frame')?.getAttribute('frameStateG') ?? ''] && state) {
+        // No shape named: the trigger sets a player button (Next or Previous).
+        actions = [{ type: 'setPlayerButton', button: PLAYER_BUTTONS[kid(data, 'frame')!.getAttribute('frameStateG')!], enabled: state !== 'disabled' && state !== 'hidden' }];
+      }
       else actions = unsupported(`state "${shapeEl?.getAttribute('setStateName')}" is a custom state`);
       break;
     }
@@ -1036,10 +1065,14 @@ function convertTrigger(
     const wrong: Condition[] = picked.map((c) => ({ variableId: '', blockId: c.id, blockState: 'selected', operator: c.correct ? 'ne' : 'eq' }));
     const no = show(q.incorrectLayerG).length ? show(q.incorrectLayerG) : show(q.tryLayerG);
     // The answer also counts toward the course score.
-    if (show(q.correctLayerG).length) out.push({ ...t, id: uid('trg'), conditions: right, conditionLogic: 'and', actions: [{ type: 'markCorrect' }, ...show(q.correctLayerG)] });
-    if (no.length) out.push({ ...t, id: uid('trg'), conditions: wrong, conditionLogic: 'or', actions: [{ type: 'markIncorrect' }, ...no] });
+    // With no feedback layers at all the answer is still graded and the
+    // course moves on, which is what Storyline does.
+    const none = !show(q.correctLayerG).length && !no.length;
+    const yes: Action[] = none ? [{ type: 'nextSlide' }] : show(q.correctLayerG);
+    const nope: Action[] = none ? [{ type: 'nextSlide' }] : no;
+    out.push({ ...t, id: uid('trg'), conditions: right, conditionLogic: 'and', actions: [{ type: 'markCorrect' }, ...yes] });
+    out.push({ ...t, id: uid('trg'), conditions: wrong, conditionLogic: 'or', actions: [{ type: 'markIncorrect' }, ...nope] });
   }
-  if (!out.length) ctx.note(slideName, 'a question has no feedback layers, so Submit does nothing');
   return out;
 }
 
