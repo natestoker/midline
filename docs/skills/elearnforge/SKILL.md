@@ -10,7 +10,7 @@ Articulate Rise and Storyline**: Rise-style prebuilt **blocks** on a
 Storyline-style **canvas with layers and a trigger engine**. React,
 TypeScript, Vite, Zustand, compiled to a **single offline-capable HTML file**.
 
-**Current state: v6.40** (November 2026). `CHANGELOG.md` has every release;
+**Current state: v6.42** (November 2026). `CHANGELOG.md` has every release;
 read its tail before assuming what exists. This skill is the map; confirm
 specifics against the code.
 
@@ -93,8 +93,9 @@ before touching `storyImport.ts` or `storyExport.ts`.
   Many and Drag and Drop questions. Tabs become a button and a layer per
   panel.
 - Audio is written as MP3 plus captions (confirmed in Storyline).
-- **Not written yet:** fill-in-the-blank, sliders, flashcards, scenario,
-  result slides, video.
+- Fill-in, result slides, flashcards, checklist, scenario, labelled graphic
+  and text entry are written (v6.42) but not yet confirmed in Storyline.
+- **Not written yet:** video, slider, timer, code.
 - Font sizes scale with slide width on both sides
   (`pt = px * 0.75 * 960 / slideWidth`).
 - Client `.story` files are real courses. Keep them out of the repo.

@@ -13,6 +13,14 @@ to a real course, not by difficulty.
   flashcards, scenario, slider on export), the NVDA pass itself, and on
   import: points per question, attempt limits, Review and Reset Quiz.
 
+## Status, 23 November 2026
+
+- **Written, waiting on a Storyline check (round 16, Z1 to Z6):** fill-in,
+  result slide, flashcards, scenario, checklist, labelled graphic, text entry.
+- **Blocked on a sample file:** video and slider. No real `.story` on hand has
+  a working video or slider object to copy from.
+- **No Storyline equivalent planned:** timer and code blocks.
+
 ## Before starting
 
 Three things only Nate can supply. Without them the matching section stalls.

@@ -69,8 +69,10 @@ def main():
                 made.append(root); raws.append((f, n, raw))
                 all_slide_g.update(re.findall(r' g="([^"]+)"', raw))
                 for t in root.iter('text'):
-                    if t.text and t.text.strip():
-                        ET.fromstring(t.text)  # the escaped rich text must itself parse
+                    # Rich text must itself parse. An accepted answer on a
+                    # fill-in question is bare words, not a document.
+                    if t.text and t.text.strip().startswith('<'):
+                        ET.fromstring(t.text)
     for f, n, raw in raws:
         for m in REFS.finditer(raw):
             if not m.group(1).startswith('00000000') and m.group(1) not in all_slide_g:

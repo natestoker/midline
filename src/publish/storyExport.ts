@@ -3,7 +3,8 @@ import type { SlideBackground, Action, AnimSpec, Block, Condition, Layer, Projec
 import { STORY_SHELL_BASE64 } from './storyShell';
 import { md5 } from './md5';
 import { encodeMp3 } from '../editor/audioBake';
-import { DRAG_DROP_INTR, PICK_MANY_INTR, PICK_ONE_INTR } from './storyQuizTemplates';
+import { textEntryVariableName } from '../schema/factory';
+import { DRAG_DROP_INTR, FREE_TEXT_CHOICE, FREE_TEXT_INTR, PICK_MANY_INTR, PICK_ONE_INTR, RESULTS_INTR, TEXT_ENTRY_FIELD } from './storyQuizTemplates';
 
 // Save a project as an Articulate Storyline 360 file.
 //
@@ -202,6 +203,14 @@ interface Ctx {
   extraLayers: string;   // layers made for tabs on this slide
   addedLayers: number;   // how many layers this slide has gained
   showOnStart: string[]; // layers to show when the slide starts (a tab set's first panel)
+  // The course's one quiz, made when a result slide is written. Storyline
+  // names its score variables from the quiz id.
+  quiz: { g: string; resultSlideG: string; score: string; scorePct: string; pass: string; passPct: string } | null;
+  hasResults: boolean;          // the project has a results block somewhere
+  questionSlides: string[];     // slide ids (ours) that hold a question, in order
+  resultTrigs: string;          // result-slide triggers for the slide being written
+  isResultSlide: boolean;
+  extraVars: { g: string; name: string }[]; // text variables that text-entry fields write to
   needsScore: boolean;   // something shows the score, so a Score variable is kept
   scoreG: string;        // that variable's id
   questionCount: number;
@@ -519,13 +528,14 @@ async function shapeXml(ctx: Ctx, b: Block, z: number, totalMs: number, trigs: s
     // each question's Correct layer adds to it.
     const raw = String(p.reference ?? '');
     const builtIn = ({ ProgressPercent: 'Project.Progress', SlideNumber: 'Project.SlideNumber', CurrentSlide: 'Project.SlideNumber', TotalSlides: 'Project.TotalSlides', ViewedSlides: 'Project.SlidesViewed', SlideName: 'Project.SlideTitle' } as Record<string, string>)[raw];
-    if (raw === 'Score' || raw === 'ScorePercent') ctx.needsScore = true;
-    const ref = builtIn ?? (raw === 'ScorePercent' ? 'Score' : raw.replace(/[^A-Za-z0-9_.]/g, '_'));
+    const isScore = raw === 'Score' || raw === 'ScorePercent';
+    if (isScore && !ctx.hasResults) ctx.needsScore = true;
+    const ref = builtIn ?? (isScore ? (ctx.hasResults ? 'Quiz1.ScorePercent' : 'Score') : raw.replace(/[^A-Za-z0-9_.]/g, '_'));
     const label = p.label ? `<p><span style="font-size: ${Math.round((Number(p.fontSize) || 32) * 0.4)}px">${xa(String(p.label))}</span></p>` : '';
     if (p.tile) { tag = 'roundRect'; geom = '<prstGeom><roundRect vertexSet="true" radius="0.1" /></prstGeom>'; fill = 'FFFFFF'; line = 'C5CEC7'; lineW = 1; }
     text = { html: `<p>${xa(String(p.prefix ?? ''))}%${ref}%${xa(String(p.suffix ?? ''))}</p>${label}`, size: Math.min(Number(p.fontSize) || 32, Math.max(14, Math.round(b.w / 5))), color: hex6(p.color as string, '0B6B45'), font: DEFAULT_FONT, align: String(p.align ?? 'center'), valign: 'center', bold: true, inset: { l: 7, t: 3, r: 7, b: 3 } };
     if (raw === 'CourseName' || raw === 'ProjectName') text.html = `<p>${xa(ctx.project.title)}</p>${label}`;
-    else if (!builtIn && ref !== 'Score' && !ctx.project.variables.some((v) => v.name.replace(/[^A-Za-z0-9_]/g, '_') === ref)) warn(ctx, `a value display points at "${ref}", which is not one of the course's own variables, so Storyline will show the name as text`);
+    else if (!builtIn && !isScore && !ctx.project.variables.some((v) => v.name.replace(/[^A-Za-z0-9_]/g, '_') === ref)) warn(ctx, `a value display points at "${ref}", which is not one of the course's own variables, so Storyline will show the name as text`);
   } else {
     warn(ctx, `"${b.type}" blocks have no Storyline equivalent; an outlined box marks where each one was`);
     line = 'C2410C'; lineW = 1;
@@ -729,7 +739,7 @@ function accentForText(ctx: Ctx): string {
 // and outlines keep their weight.
 const scaleOf = (ctx: Ctx) => Math.max(0.75, ctx.w / 1280);
 
-const QUESTION_TYPES = new Set(['multipleChoice', 'dragDrop', 'matching', 'sequence']);
+const QUESTION_TYPES = new Set(['multipleChoice', 'dragDrop', 'matching', 'sequence', 'fillBlank']);
 
 // Row heights for a stack of labelled boxes: each at least minH and tall
 // enough for its own text, since these boxes do not autofit and Storyline
@@ -792,6 +802,20 @@ function questionXml(ctx: Ctx, b: Block, zStart: number, totalMs: number, firstL
       shapes += boxShape(ctx, { ...base, z: z++, fill: 'FFFFFF', line: 'C3CCC5', states, initState: 'Normal' });
       choiceXml.push(choice(cg, ZERO, right.includes(c.id)));
     });
+  } else if (b.type === 'fillBlank') {
+    // A text-entry field under the question. Storyline stores what is typed
+    // in a text variable and compares it with the accepted answers.
+    template = FREE_TEXT_INTR;
+    const answers = ((p.correctAnswers ?? []) as string[]).map((a) => String(a).trim()).filter(Boolean);
+    if (!answers.length) warn(ctx, 'a fill-in question has no accepted answers; add them in Storyline');
+    const fieldG = guid(), varG = guid();
+    const fieldH = px(64), padX = px(18), padY = px(10);
+    const fx = b.x + pad, fy = top, fw = Math.min(innerW, px(560));
+    const size = Math.max(px(18), Math.min(px(22), Number(p.fontSize) * k || px(20)));
+    ctx.extraVars.push({ g: varG, name: `TextEntry${ctx.extraVars.length + 1}` });
+    shapes += entryFieldXml(ctx, { g: fieldG, varG, name: 'Answer field', z: z++, x: fx, y: fy, w: fw, h: fieldH, totalMs, placeholder: 'Type your answer here', size, padX, padY, lineW: line });
+    template = template.replace('@@ENTRY@@', fieldG).replace('case="false"', `case="${p.caseSensitive ? 'true' : 'false'}"`);
+    answers.forEach((a) => choiceXml.push(FREE_TEXT_CHOICE.replace(/ (g|verG)="[0-9a-f-]{36}"/g, (_m, key) => ` ${key}="${guid()}"`).replace('@@TEXT@@', xa(a))));
   } else {
     // Drag and drop, matching and sequence all become a freeform drag-and-drop
     // question: drag items on the left, drop targets on the right.
@@ -848,6 +872,201 @@ function questionXml(ctx: Ctx, b: Block, zStart: number, totalMs: number, firstL
   return { shapes, count: z - zStart, layers };
 }
 
+// A text-entry field. Storyline gives it a built-in trigger that copies what
+// is typed into a text variable when the field loses focus.
+function entryFieldXml(ctx: Ctx, o: { g: string; varG: string; name: string; z: number; x: number; y: number; w: number; h: number; totalMs: number; placeholder: string; size: number; padX: number; padY: number; lineW: number; multi?: boolean }): string {
+  return TEXT_ENTRY_FIELD
+    .replace(/ verG="[0-9a-f-]{36}"/g, () => ` verG="${guid()}"`)
+    .replace(/<(tmProps|txtTmCtx|textEntryTrig) g="[0-9a-f-]{36}"/g, (_m, tag) => `<${tag} g="${guid()}"`)
+    .replace(/@@G@@/g, o.g).replace(/@@VARG@@/g, o.varG).replace('@@NAME@@', xa(o.name)).replace('@@Z@@', String(o.z))
+    .replace(/@@W@@/g, String(ctx.w)).replace(/@@H@@/g, String(ctx.h))
+    .replace('@@L@@', n(o.x)).replace('@@T@@', n(o.y)).replace('@@R@@', n(o.x + o.w)).replace('@@B@@', n(o.y + o.h))
+    .replace('@@BG@@', paintBg('FFFFFF', 'A9B5AC', o.lineW))
+    .replace('@@TEXT@@', xa(plainDoc(o.placeholder, o.size, '5B6660', false, 'left')))
+    .replace('@@ALT@@', xa(o.name)).replace('@@PLAIN@@', xa(o.placeholder))
+    .replace(/@@PAD@@/g, String(Math.round(o.padX))).replace(/@@PADY@@/g, String(Math.round(o.padY))).replace('@@BR@@', n(o.w - o.padX)).replace('@@BB@@', n(o.h - o.padY))
+    .replace('multi="false"', `multi="${o.multi ? 'true' : 'false'}"`)
+    .replace(/txtTmCtx ([^>]*)dur="\d+"/, `txtTmCtx $1dur="${o.totalMs}"`);
+}
+
+// A checklist: a title and a row per item. Each row's Selected state is the
+// ticked look, so Storyline toggles it on click with no trigger.
+function checklistXml(ctx: Ctx, b: Block, zStart: number, totalMs: number): { shapes: string; count: number } {
+  const p = b.props as unknown as { title?: string; items?: { id: string; text: string }[] };
+  const k = scaleOf(ctx);
+  const px = (v: number) => Math.round(v * k);
+  const accent = accentForText(ctx);
+  const items = p.items ?? [];
+  const gap = px(10);
+  let z = zStart;
+  let shapes = '';
+  let y = b.y;
+  if (p.title) {
+    shapes += boxShape(ctx, { tag: 'textBox', g: guid(), name: 'Checklist title', z: z++, x: b.x, y, w: b.w, h: px(44), totalMs, fill: null, line: null, lineW: 0, text: { value: p.title, size: px(22), color: '1C211D', bold: true, align: 'left', pad: 0 } });
+    y += px(52);
+  }
+  const padX = Math.round(px(18));
+  const rows = stackRows(items.map((it) => `[  ]   ${it.text}`), b.w, px(18), padX, px(48), Math.max(px(48), b.y + b.h - y), gap);
+  items.forEach((it, i) => {
+    const base = { tag: 'roundRect' as const, g: guid(), name: `Item ${i + 1}`, z: 0, x: b.x, y, w: b.w, h: rows.heights[i], totalMs, radius: 0.2, lineW: Math.max(1, px(1.5)) };
+    const label = (mark: string) => ({ value: `${mark}   ${it.text}`, size: rows.size, bold: false, align: 'left', pad: padX });
+    const states =
+      stateXml(ctx, 'Normal', { ...base, fill: 'FFFFFF', line: 'C3CCC5', text: { ...label('[  ]'), color: '1C211D' } }) +
+      stateXml(ctx, 'Hover', { ...base, fill: 'F1F8F4', line: accent, text: { ...label('[  ]'), color: '1C211D' } }) +
+      stateXml(ctx, 'Selected', { ...base, fill: 'F1F8F4', line: accent, text: { ...label('[x]'), color: '1C211D', bold: true } });
+    shapes += boxShape(ctx, { ...base, z: z++, fill: 'FFFFFF', line: 'C3CCC5', states, initState: 'Normal' });
+    y += rows.heights[i] + gap;
+  });
+  return { shapes, count: z - zStart };
+}
+
+// A labelled graphic: the picture, a numbered marker for each pin, and a
+// layer per pin holding its card.
+async function labeledGraphicXml(ctx: Ctx, b: Block, zStart: number, totalMs: number, firstLayerId: number): Promise<{ shapes: string; count: number; layers: string; added: number }> {
+  const p = b.props as unknown as { src?: string; markers?: { id: string; x: number; y: number; title: string; body: string }[] };
+  const k = scaleOf(ctx);
+  const px = (v: number) => Math.round(v * k);
+  const accent = accentForText(ctx);
+  let z = zStart;
+  let shapes = '';
+  if (p.src) {
+    const pic = { id: `lg-${guid()}`, type: 'image', name: b.name || 'Graphic', x: b.x, y: b.y, w: b.w, h: b.h, props: { src: p.src, alt: b.accLabel ?? '' } } as unknown as Block;
+    ctx.blockG.set(pic.id, guid());
+    shapes += await shapeXml(ctx, pic, z++, totalMs, '');
+  } else {
+    shapes += boxShape(ctx, { tag: 'rect', g: guid(), name: b.name || 'Graphic', z: z++, x: b.x, y: b.y, w: b.w, h: b.h, totalMs, fill: 'F4F7F5', line: 'C3CCC5', lineW: 1 });
+  }
+  const markers = p.markers ?? [];
+  const d = px(44);
+  const cardW = Math.min(b.w - px(40), px(520)), cardH = px(170);
+  let layers = '';
+  markers.forEach((m, i) => {
+    const mg = guid(), lg = guid();
+    const mx = b.x + (b.w * m.x) / 100 - d / 2, my = b.y + (b.h * m.y) / 100 - d / 2;
+    shapes += boxShape(ctx, { tag: 'roundRect', g: mg, name: `Marker ${i + 1}: ${m.title}`.slice(0, 60), z: z++, x: Math.round(mx), y: Math.round(my), w: d, h: d, totalMs, fill: accent, line: 'FFFFFF', lineW: Math.max(2, px(2)), radius: 0.5, text: { value: String(i + 1), size: px(18), color: 'FFFFFF', bold: true, align: 'center', pad: 0 }, trigs: trigXml(mg, { event: 'OnClick', action: 'showSubSlide', sub: 'spec', layer: `showG="${lg}" ` }) });
+    // The card sits beside its marker, kept inside the graphic.
+    const cx = Math.round(Math.max(b.x + px(12), Math.min(b.x + b.w - cardW - px(12), mx + d + px(12))));
+    const cy = Math.round(Math.max(b.y + px(12), Math.min(b.y + b.h - cardH - px(12), my - px(20))));
+    const pad = px(18);
+    const card =
+      boxShape(ctx, { tag: 'roundRect', g: guid(), name: 'Card', z: 0, x: cx, y: cy, w: cardW, h: cardH, totalMs, fill: 'FFFFFF', line: accent, lineW: Math.max(2, px(2)), radius: 0.08 }) +
+      boxShape(ctx, { tag: 'textBox', g: guid(), name: 'Card title', z: 1, x: cx + pad, y: cy + pad, w: cardW - pad * 2, h: px(34), totalMs, fill: null, line: null, lineW: 0, text: { value: m.title || `Marker ${i + 1}`, size: px(19), color: '1C211D', bold: true, align: 'left', pad: 0 } }) +
+      boxShape(ctx, { tag: 'textBox', g: guid(), name: 'Card text', z: 2, x: cx + pad, y: cy + pad + px(40), w: cardW - pad * 2, h: cardH - pad * 2 - px(40), totalMs, fill: null, line: null, lineW: 0, grow: true, text: { value: m.body, size: px(16), color: '3D4A42', bold: false, align: 'left', pad: 0 } });
+    layers += layerXml(ctx, { g: lg, id: firstLayerId + i, name: m.title || `Marker ${i + 1}`, shapes: `<shapeLst>${card}</shapeLst>`, trigs: '', modal: false, pause: false, ms: totalMs });
+  });
+  return { shapes, count: z - zStart, layers, added: markers.length };
+}
+
+// Flashcards: one shape per card. The front is its Normal state and the back
+// its Selected state, which Storyline toggles on click with no trigger.
+function flashcardsXml(ctx: Ctx, b: Block, zStart: number, totalMs: number): { shapes: string; count: number } {
+  const p = b.props as unknown as { cards?: { id: string; front: string; back: string }[]; columns?: number };
+  const k = scaleOf(ctx);
+  const px = (v: number) => Math.round(v * k);
+  const accent = accentForText(ctx);
+  const cards = p.cards ?? [];
+  const cols = Math.max(1, Math.min(cards.length || 1, Math.round(p.columns ?? 3)));
+  const rows = Math.max(1, Math.ceil(cards.length / cols));
+  const gap = px(16);
+  const cw = Math.floor((b.w - gap * (cols - 1)) / cols), ch = Math.floor((b.h - gap * (rows - 1)) / rows);
+  const line = Math.max(2, px(2));
+  let z = zStart;
+  let shapes = '';
+  cards.forEach((card, i) => {
+    const base = { tag: 'roundRect' as const, g: guid(), name: `Card ${i + 1}`, z: 0, x: b.x + (i % cols) * (cw + gap), y: b.y + Math.floor(i / cols) * (ch + gap), w: cw, h: ch, totalMs, radius: 0.08, lineW: line };
+    const face = (value: string) => ({ value, size: px(20), bold: true, align: 'center', pad: px(16) });
+    const states =
+      stateXml(ctx, 'Normal', { ...base, fill: 'FFFFFF', line: 'C3CCC5', text: { ...face(card.front), color: '1C211D' } }) +
+      stateXml(ctx, 'Hover', { ...base, fill: 'F1F8F4', line: accent, text: { ...face(card.front), color: '1C211D' } }) +
+      stateXml(ctx, 'Selected', { ...base, fill: accent, line: accent, text: { ...face(card.back), color: 'FFFFFF', bold: false } });
+    shapes += boxShape(ctx, { ...base, z: z++, fill: 'FFFFFF', line: 'C3CCC5', states, initState: 'Normal' });
+  });
+  return { shapes, count: z - zStart };
+}
+
+// A scenario: a layer per passage with a button for each choice. A choice
+// shows the passage it leads to; an ending choice moves to the next slide.
+function scenarioXml(ctx: Ctx, b: Block, totalMs: number, firstLayerId: number): { layers: string; onStart: string; count: number } {
+  const p = b.props as unknown as { passages?: { id: string; speaker?: string; text: string; choices: { id: string; label: string; targetId: string }[] }[] };
+  const k = scaleOf(ctx);
+  const px = (v: number) => Math.round(v * k);
+  const accent = accentForText(ctx);
+  const passages = p.passages ?? [];
+  const layerOf = new Map(passages.map((x) => [x.id, guid()] as const));
+  const pad = px(24), gap = px(12), btnH = px(54);
+  let layers = '';
+  passages.forEach((ps, i) => {
+    const lg = layerOf.get(ps.id)!;
+    const choices = ps.choices ?? [];
+    const btnsH = choices.length ? choices.length * (btnH + gap) : 0;
+    const panelH = Math.max(px(80), b.h - btnsH);
+    let z = 0;
+    let shapes = boxShape(ctx, { tag: 'roundRect', g: guid(), name: 'Passage panel', z: z++, x: b.x, y: b.y, w: b.w, h: panelH, totalMs, fill: 'FFFFFF', line: 'C3CCC5', lineW: Math.max(1, px(1.5)), radius: 0.04 });
+    let ty = b.y + pad;
+    if (ps.speaker) {
+      shapes += boxShape(ctx, { tag: 'textBox', g: guid(), name: 'Speaker', z: z++, x: b.x + pad, y: ty, w: b.w - pad * 2, h: px(34), totalMs, fill: null, line: null, lineW: 0, text: { value: ps.speaker, size: px(16), color: accent, bold: true, align: 'left', pad: 0 } });
+      ty += px(38);
+    }
+    shapes += boxShape(ctx, { tag: 'textBox', g: guid(), name: 'Passage', z: z++, x: b.x + pad, y: ty, w: b.w - pad * 2, h: Math.max(px(40), b.y + panelH - pad - ty), totalMs, fill: null, line: null, lineW: 0, grow: true, text: { value: ps.text, size: px(20), color: '1C211D', bold: false, align: 'left', pad: 0 } });
+    choices.forEach((c, ci) => {
+      const bg = guid();
+      const target = layerOf.get(c.targetId);
+      const trig = target
+        ? trigXml(bg, { event: 'OnClick', action: 'showSubSlide', sub: 'spec', layer: `showG="${target}" ` })
+        : trigXml(bg, { event: 'OnClick', action: 'jumpToSlide', sub: 'next', cue: '0' });
+      shapes += boxShape(ctx, { tag: 'roundRect', g: bg, name: `Choice: ${c.label}`.slice(0, 60), z: z++, x: b.x, y: b.y + panelH + gap + ci * (btnH + gap), w: b.w, h: btnH, totalMs, fill: accent, line: null, lineW: 0, radius: 0.25, text: { value: c.label, size: px(17), color: 'FFFFFF', bold: true, align: 'center', pad: px(12) }, trigs: trig });
+    });
+    layers += layerXml(ctx, { g: lg, id: firstLayerId + i, name: `Passage ${i + 1}${ps.speaker ? `: ${ps.speaker}` : ''}`, shapes: `<shapeLst>${shapes}</shapeLst>`, trigs: '', modal: false, pause: false, ms: totalMs });
+  });
+  return { layers, onStart: passages[0] ? layerOf.get(passages[0].id)! : '', count: passages.length };
+}
+
+// A results block becomes a Storyline result slide: live score text, the
+// invisible result object, and Success and Failure layers shown by the score.
+function resultsXml(ctx: Ctx, b: Block, zStart: number, totalMs: number, firstLayerId: number, slideG: string): { shapes: string; count: number; layers: string } {
+  const p = b.props as unknown as { heading?: string; passMessage?: string; failMessage?: string; showPassMark?: boolean; align?: string };
+  const k = scaleOf(ctx);
+  const px = (v: number) => Math.round(v * k);
+  const quiz = ctx.quiz ?? (ctx.quiz = { g: guid(), resultSlideG: slideG, score: guid(), scorePct: guid(), pass: guid(), passPct: guid() });
+  quiz.resultSlideG = slideG;
+  const align = p.align === 'left' || p.align === 'right' ? p.align : 'center';
+  const pad = px(24);
+  const w = b.w - pad * 2;
+  let z = zStart;
+  let y = b.y + pad;
+  let shapes = '';
+  const line = (name: string, value: string, size: number, h: number, color: string, bold: boolean) => {
+    shapes += boxShape(ctx, { tag: 'textBox', g: guid(), name, z: z++, x: b.x + pad, y, w, h, totalMs, fill: null, line: null, lineW: 0, text: { value, size, color, bold, align, pad: 0 } });
+    y += h + px(8);
+  };
+  line('Results heading', p.heading || 'Your result', px(28), px(52), '1C211D', true);
+  line('Score', 'Your score: %Quiz1.ScorePercent%%', px(40), px(72), '1C211D', true);
+  if (p.showPassMark !== false) line('Pass mark', 'Pass mark: %Quiz1.PassPercent%%', px(18), px(36), '5B6660', false);
+  const msgY = y, msgH = Math.max(px(60), b.y + b.h - pad - y);
+  const okLayer = guid(), failLayer = guid(), okTrig = guid(), failTrig = guid();
+  shapes += RESULTS_INTR
+    .replace(/ (g|verG)="[0-9a-f-]{36}"/g, (_m, key) => ` ${key}="${guid()}"`)
+    .replace('@@G@@', guid()).replace('@@ANS@@', guid()).replace('@@QUIZ@@', quiz.g).replace('@@INTRG@@', guid())
+    .replace('@@W@@', String(ctx.w)).replace('@@H@@', String(ctx.h)).replace('@@R@@', String(ctx.w - 30)).replace('@@B@@', String(ctx.h - 30))
+    .replace('@@OKTRIG@@', okTrig).replace('@@OKLAYER@@', okLayer).replace('@@FAILTRIG@@', failTrig).replace('@@FAILLAYER@@', failLayer)
+    .replace(/zOrder="\d+"/, `zOrder="${z++}"`);
+  const message = (text: string, color: string) => `<shapeLst>${boxShape(ctx, { tag: 'textBox', g: guid(), name: 'Message', z: 0, x: b.x + pad, y: msgY, w, h: msgH, totalMs, fill: null, line: null, lineW: 0, grow: true, text: { value: text, size: px(22), color, bold: true, align, pad: 0 } })}</shapeLst>`;
+  const layers =
+    layerXml(ctx, { g: okLayer, id: firstLayerId, name: 'Success', shapes: message(p.passMessage || 'You passed.', '1B7F4B'), trigs: '', modal: false, pause: false, ms: totalMs }) +
+    layerXml(ctx, { g: failLayer, id: firstLayerId + 1, name: 'Failure', shapes: message(p.failMessage || 'Not yet. Review the material and try again.', 'B42318'), trigs: '', modal: false, pause: false, ms: totalMs });
+  // Score against the pass mark decides the layer; the quiz is submitted as the slide starts.
+  const cond = (op: string) => `<trigCond ${gv()} lightBox="false" op="${op}" strVal1="" strVal2="" floatVal1="0" floatVal2="0" boolVal="" varG="${quiz.score}" varG2="${quiz.pass}" dataType="var" andOr="and"><shapeState shapeG="${ZERO}" op="eq" name="Normal" /></trigCond>`;
+  const submit = trigXml(slideG, { name: 'Submit', event: 'OnStart', action: 'SubmitQuizSL', sub: 'next', cue: '0' })
+    .replace('<trig ', '<submitQuizTrig ').replace('</trig>', '</submitQuizTrig>')
+    .replace('<SeekTimeline ', `<customData enumName="SubmitQuizSL" data="" g="${slideG}" bool="false" /><SeekTimeline `);
+  ctx.resultTrigs =
+    trigXml(slideG, { g: okTrig, name: 'Success', event: 'OnStart', action: 'showSubSlide', sub: 'next', cue: '0', layer: `showG="${okLayer}" `, cond: cond('gte') }) +
+    trigXml(slideG, { g: failTrig, name: 'Failure', event: 'OnStart', action: 'showSubSlide', sub: 'next', cue: '0', layer: `showG="${failLayer}" `, cond: cond('lt') }) +
+    submit;
+  ctx.isResultSlide = true;
+  return { shapes, count: z - zStart, layers };
+}
+
 // Tabs and accordions: a button per panel and a layer per panel. Showing one
 // layer hides the others, which is how Storyline builds tabs.
 function tabsXml(ctx: Ctx, b: Block, zStart: number, totalMs: number, firstLayerId: number): { shapes: string; count: number; layers: string; onStart: string } {
@@ -898,7 +1117,7 @@ function noteXml(notes: string | undefined): string {
   return `<note>${xa(`<Document xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"><Content>${blocks}</Content></Document>`)}</note>`;
 }
 
-async function shapeList(ctx: Ctx, layer: Layer, totalMs: number, blockTrigs: Map<string, string>, asQuestion?: { firstLayerId: number }, backdrop?: SlideBackground): Promise<string> {
+async function shapeList(ctx: Ctx, layer: Layer, totalMs: number, blockTrigs: Map<string, string>, asQuestion?: { firstLayerId: number; slideG: string }, backdrop?: SlideBackground): Promise<string> {
   let out = '';
   const blocks = flatBlocks(layer.blocks).filter((b) => !(b.type === 'audio'));
   let z = 0;
@@ -916,10 +1135,52 @@ async function shapeList(ctx: Ctx, layer: Layer, totalMs: number, blockTrigs: Ma
       out += q.shapes; z += q.count;
       ctx.question = { layers: q.layers };
       ctx.questionCount++;
+      ctx.questionSlides.push(asQuestion.slideG);
       ctx.addedLayers += 2;
       continue;
     }
     if (QUESTION_TYPES.has(b.type) && asQuestion) warn(ctx, 'Storyline allows one question per slide; a second quiz block on a slide was left as an outlined box');
+    if (b.type === 'results' && asQuestion && !ctx.isResultSlide && !ctx.question) {
+      const r = resultsXml(ctx, b, z, totalMs, asQuestion.firstLayerId + ctx.addedLayers, asQuestion.slideG);
+      out += r.shapes; z += r.count;
+      ctx.extraLayers += r.layers;
+      ctx.addedLayers += 2;
+      continue;
+    }
+    if (b.type === 'checklist') {
+      const c = checklistXml(ctx, b, z, totalMs);
+      out += c.shapes; z += c.count;
+      continue;
+    }
+    if (b.type === 'labeledGraphic' && asQuestion) {
+      const lgx = await labeledGraphicXml(ctx, b, z, totalMs, asQuestion.firstLayerId + ctx.addedLayers);
+      out += lgx.shapes; z += lgx.count;
+      ctx.extraLayers += lgx.layers;
+      ctx.addedLayers += lgx.added;
+      continue;
+    }
+    if (b.type === 'textEntry') {
+      // Bound to the block's own text variable when the project has it.
+      const own = ctx.project.variables.find((v) => v.name === textEntryVariableName(b.id));
+      let varG = own ? ctx.varG.get(own.id) : undefined;
+      if (!varG) { varG = guid(); ctx.extraVars.push({ g: varG, name: `TextEntry${ctx.extraVars.length + 1}` }); }
+      const tp = b.props as unknown as { placeholder?: string; fontSize?: number; multiline?: boolean };
+      const kk = scaleOf(ctx);
+      out += entryFieldXml(ctx, { g: ctx.blockG.get(b.id)!, varG, name: b.name || 'Text entry', z: z++, x: b.x, y: b.y, w: b.w, h: b.h, totalMs, placeholder: tp.placeholder || 'Type here', size: Number(tp.fontSize) || 18, padX: 12 * kk, padY: 8 * kk, lineW: Math.max(1, Math.round(1.5 * kk)), multi: !!tp.multiline });
+      continue;
+    }
+    if (b.type === 'flashcards') {
+      const f = flashcardsXml(ctx, b, z, totalMs);
+      out += f.shapes; z += f.count;
+      continue;
+    }
+    if (b.type === 'scenario' && asQuestion) {
+      const sc = scenarioXml(ctx, b, totalMs, asQuestion.firstLayerId + ctx.addedLayers);
+      ctx.extraLayers += sc.layers;
+      ctx.addedLayers += sc.count;
+      if (sc.onStart) ctx.showOnStart.push(sc.onStart);
+      continue;
+    }
     if (b.type === 'tabs' && asQuestion) {
       const t = tabsXml(ctx, b, z, totalMs, asQuestion.firstLayerId + ctx.addedLayers);
       out += t.shapes; z += t.count;
@@ -944,8 +1205,8 @@ async function slideXml(ctx: Ctx, slide: Slide, layoutG: string): Promise<string
   const audioEnd = await prepareAudio(ctx, slide.layers[0], slide.timeline?.captionsVtt ?? null);
   const totalMs = Math.max(5000, Math.round((slide.timeline?.duration ?? 5) * 1000), audioEnd);
   const { slideTrigs, layerTrigs, blockTrigs, customNext } = sortTriggers(ctx, slide);
-  ctx.question = null; ctx.extraLayers = ''; ctx.addedLayers = 0; ctx.showOnStart = [];
-  const base = await shapeList(ctx, slide.layers[0], totalMs, blockTrigs, { firstLayerId: slide.layers.length }, slide.background);
+  ctx.question = null; ctx.extraLayers = ''; ctx.addedLayers = 0; ctx.showOnStart = []; ctx.resultTrigs = ''; ctx.isResultSlide = false;
+  const base = await shapeList(ctx, slide.layers[0], totalMs, blockTrigs, { firstLayerId: slide.layers.length, slideG: g }, slide.background);
   const question = ctx.question as { layers: string } | null;
   let layers = '';
   for (const [i, layer] of slide.layers.slice(1).entries()) {
@@ -957,7 +1218,7 @@ async function slideXml(ctx: Ctx, slide: Slide, layoutG: string): Promise<string
   }
   const bg = SLIDE_BG;
   const nav = `${customNext ? '' : defaultNext(g)}${defaultPrev(g)}`;
-  return `<?xml version="1.0" encoding="utf-8" standalone="yes"?><sld g="${g}" verG="${guid()}" timeManagerVisibilityLocked="true" typeName="" id="0" state="0" showMasterSp="false" name="${xa(slide.name)}" role="" resetMode="auto" layoutG="${question ? QUESTION_LAYOUT_G : layoutG}" stateG="${ZERO}" showPlay="false" clrScheme="def" isDrawingThemeUpgraded="true" assetG="${ZERO}" backVis="trans" layoutType="${question ? 'Quiz Questions' : 'Content'}" hideToc="${slide.lightbox ? 'true' : 'false'}" advMode="${slide.timeline?.autoAdvance ? 'auto' : 'user'}" linkType="none" showInReview="true" includeInSlideCounts="true" zoomTransDur="1000" useNextTrans="true"><tmProps ${gv()} cur="0" min="${totalMs}" visible="true" hideAll="false"><markers nextId="0" /></tmProps><tmCtxLst version="1"><tmCtx ${gv()} start="0" dur="0" min="250" max="0" hasMax="false" alwysShw="false" untilEnd="false" assetStart="0" name="" /></tmCtxLst><sz w="0" h="0" /><bg>${bg}</bg>${base}<trigLst>${nav}${slideTrigs}${ctx.showOnStart.map((lg) => trigXml(g, { event: 'OnStart', action: 'showSubSlide', sub: 'spec', layer: `showG="${lg}" ` })).join('')}</trigLst><localizedName /><trans />${noteXml(slide.notes)}<navData prev="${slide.nav?.back === 'hide' ? 'false' : 'true'}" prevGesture="true" next="${slide.nav?.next === 'hide' ? 'false' : 'true'}" nextGesture="true" submit="false" default="true" menu="true" res="true" glos="false" notes="false" seek="false" replay="false" play="true" search="false" ltBxClse="true" />${layers || question || ctx.extraLayers ? `<sldLayerLst nextIdx="0">${layers}${ctx.extraLayers}${question?.layers ?? ''}</sldLayerLst>` : ''}<thumb g="${guid()}" sz="300" /><localizedNote /><panTime ${gv()} timeManagerVisibilityLocked="false" typeName="" hide="false" lock="false"><tmProps ${gv()} cur="0" min="5000" visible="true" hideAll="false" /><tmCtxLst version="0" /></panTime><panRect g="${guid()}"><rect l="0" t="0" r="0" b="0" /></panRect></sld>`;
+  return `<?xml version="1.0" encoding="utf-8" standalone="yes"?><sld g="${g}" verG="${guid()}" timeManagerVisibilityLocked="true" typeName="" id="0" state="0" showMasterSp="false" name="${xa(slide.name)}" role="" resetMode="auto" layoutG="${question ? QUESTION_LAYOUT_G : layoutG}" stateG="${ZERO}" showPlay="false" clrScheme="def" isDrawingThemeUpgraded="true" assetG="${ZERO}" backVis="trans" layoutType="${question ? 'Quiz Questions' : ctx.isResultSlide ? 'Quiz Review' : 'Content'}" hideToc="${slide.lightbox ? 'true' : 'false'}" advMode="${slide.timeline?.autoAdvance ? 'auto' : 'user'}" linkType="none" showInReview="true" includeInSlideCounts="true" zoomTransDur="1000" useNextTrans="true"><tmProps ${gv()} cur="0" min="${totalMs}" visible="true" hideAll="false"><markers nextId="0" /></tmProps><tmCtxLst version="1"><tmCtx ${gv()} start="0" dur="0" min="250" max="0" hasMax="false" alwysShw="false" untilEnd="false" assetStart="0" name="" /></tmCtxLst><sz w="0" h="0" /><bg>${bg}</bg>${base}<trigLst>${nav}${slideTrigs}${ctx.resultTrigs}${ctx.showOnStart.map((lg) => trigXml(g, { event: 'OnStart', action: 'showSubSlide', sub: 'spec', layer: `showG="${lg}" ` })).join('')}</trigLst><localizedName /><trans />${noteXml(slide.notes)}<navData prev="${slide.nav?.back === 'hide' ? 'false' : 'true'}" prevGesture="true" next="${slide.nav?.next === 'hide' ? 'false' : 'true'}" nextGesture="true" submit="false" default="true" menu="true" res="true" glos="false" notes="false" seek="false" replay="false" play="true" search="false" ltBxClse="true" />${layers || question || ctx.extraLayers ? `<sldLayerLst nextIdx="0">${layers}${ctx.extraLayers}${question?.layers ?? ''}</sldLayerLst>` : ''}<thumb g="${guid()}" sz="300" /><localizedNote /><panTime ${gv()} timeManagerVisibilityLocked="false" typeName="" hide="false" lock="false"><tmProps ${gv()} cur="0" min="5000" visible="true" hideAll="false" /><tmCtxLst version="0" /></panTime><panRect g="${guid()}"><rect l="0" t="0" r="0" b="0" /></panRect></sld>`;
 }
 
 const BOM = '\uFEFF';
@@ -973,7 +1234,7 @@ export async function exportStory(project: Project): Promise<StoryExportResult> 
   const first = project.slides[0];
   const ctx: Ctx = {
     project, w: first?.width ?? 1280, h: first?.height ?? 720, warnings: new Map(),
-    slideG: new Map(), layerG: new Map(), blockG: new Map(), varG: new Map(), media: new Map(), slideMedia: new Set(), audio: new Map(), blockAudio: new Map(), question: null, extraLayers: '', addedLayers: 0, showOnStart: [], needsScore: false, scoreG: guid(), questionCount: 0
+    slideG: new Map(), layerG: new Map(), blockG: new Map(), varG: new Map(), media: new Map(), slideMedia: new Set(), audio: new Map(), blockAudio: new Map(), question: null, extraLayers: '', addedLayers: 0, showOnStart: [], quiz: null, hasResults: false, questionSlides: [], resultTrigs: '', isResultSlide: false, extraVars: [], needsScore: false, scoreG: guid(), questionCount: 0
   };
   for (const s of project.slides) {
     ctx.slideG.set(s.id, guid());
@@ -984,6 +1245,8 @@ export async function exportStory(project: Project): Promise<StoryExportResult> 
   }
   project.variables.forEach((v) => ctx.varG.set(v.id, guid()));
   fontScale = 960 / ctx.w;
+  ctx.hasResults = project.slides.some((s) => flatBlocks(s.layers[0]?.blocks ?? []).some((b) => b.type === 'results'));
+  if (ctx.hasResults) ctx.quiz = { g: guid(), resultSlideG: ZERO, score: guid(), scorePct: guid(), pass: guid(), passPct: guid() };
   if (project.slides.some((s) => s.width !== ctx.w || s.height !== ctx.h)) warn(ctx, 'slides of different sizes were all saved at the size of the first slide');
   if (project.banks?.length) warn(ctx, 'question banks were left out');
 
@@ -1036,7 +1299,30 @@ export async function exportStory(project: Project): Promise<StoryExportResult> 
   const hasScoreVar = project.variables.some((v) => v.name === 'Score');
   const scoreVar = ctx.needsScore && !hasScoreVar
     ? `<var g="${ctx.scoreG}" verG="${guid()}" name="Score" dataType="num" val="0" type="user" propPath="" isRandom="false" randomMin="0" randomMax="0" defaultEmptyIfZero="false" />` : '';
-  story = story.replace('</varLst>', `${vars}${scoreVar}</varLst>`);
+  // A text-entry field needs a text variable of its own.
+  const taken = new Set(project.variables.map((v) => v.name));
+  const entryVars = ctx.extraVars.map((v) => {
+    let name = v.name;
+    while (taken.has(name)) name += '_';
+    taken.add(name);
+    return `<var g="${v.g}" verG="${guid()}" name="${name}" dataType="text" val="" type="user" propPath="" isRandom="false" randomMin="0" randomMax="0" defaultEmptyIfZero="false" />`;
+  }).join('');
+  // The quiz: Storyline reads its score through four variables whose path is
+  // the quiz's own part id.
+  let quizVars = '';
+  if (ctx.quiz && ctx.quiz.resultSlideG !== ZERO) {
+    const q = ctx.quiz;
+    const pass = Math.max(0, Math.min(100, Math.round(project.completion?.passingScore ?? 80)));
+    const path = partId(q.g).slice(1);
+    const qv = (g: string, name: string, prop: string) => `<var g="${g}" verG="${guid()}" name="Quiz1.${name}" dataType="num" val="0" type="prop" propPath="_player.${path}.$${prop}" isRandom="false" randomMin="0" randomMax="0" defaultEmptyIfZero="false" />`;
+    quizVars = qv(q.scorePct, 'ScorePercent', 'PercentScore') + qv(q.score, 'ScorePoints', 'Score') + qv(q.pass, 'PassPoints', 'PassScore') + qv(q.passPct, 'PassPercent', 'PassPercent');
+    const items = ctx.questionSlides.map((g) => `<item>${g}</item>`).join('');
+    const quizXml = `<quiz g="${q.g}" verG="${guid()}" timed="false" name="Quiz1" passScore="${pass}" timeLimit="PT1H" timerMode="course" passPoints="${q.pass}" passPct="${q.passPct}" scorePoints="${q.score}" scorePct="${q.scorePct}" passG="${ZERO}" totalQuizzesG="${ZERO}" passedQuizzesG="${ZERO}" failedQuizzesG="${ZERO}" resultSldG="${q.resultSlideG}" resultMode="qstn" showcorrectincorrectinreview="true" reviewincorrectquestionsonly="false" resetincorrectquestionsonly="false" mustPass="false" onlyScoreViewedQuestions="false" roundUpScorePercent="false">${items ? `<questionIdLst>${items}</questionIdLst>` : '<questionIdLst />'}<dataLst /></quiz>`;
+    if (!story.includes('<quizLst />')) warn(ctx, 'the result slide could not be linked to a quiz in the Storyline file');
+    story = story.replace('<quizLst />', `<quizLst>${quizXml}</quizLst>`);
+    if (!/<quizMgr[^>]*><defaults /.test(story)) story = story.replace(/(<quizMgr [^>]*>)/, `$1<defaults ${gv()} points="10" attempts="1" shuffle="true" allowSkip="false" gradFdbk="true" survFdbk="false" />`);
+  }
+  story = story.replace('</varLst>', `${vars}${scoreVar}${entryVars}${quizVars}</varLst>`);
   const now = new Date().toISOString().replace('Z', '0000+00:00');
   const pictureXml = [...ctx.media.values()].map((m) =>
     `<media g="${m.g}" verG="${guid()}" type="Png" displayName="${xa(m.name)}" origFile="C:\\Midline\\${xa(m.name)}" source="C:\\Midline\\${xa(m.name)}" useCnt="0" bytes="${m.bytes.length}" modDT="${now}" addDT="${now}"><langAltText /><md5Checksum><stream>${m.hash}</stream><source>${m.hash}</source></md5Checksum></media>`).join('');

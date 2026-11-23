@@ -151,7 +151,30 @@ Storyline allows one question per slide, so a second quiz block on the same
 slide stays an outlined box. Each question is worth 10 points with one
 attempt; change that in Storyline's Question tab.
 
-Other blocks: **tabs and accordions** become a button per panel and a layer
+**Fill in the blank** is saved as a freeform Text Entry question: a text-entry
+field under the question, with your accepted answers.
+
+A **results block** makes its slide a Storyline result slide. The file gets a
+quiz with your pass mark, the question slides are listed in it, and the slide
+shows `%Quiz1.ScorePercent%` and `%Quiz1.PassPercent%` with Success and
+Failure layers. A value display that shows the score uses the same variable.
+Without a results block, the score falls back to the stand-in `Score`
+variable described below.
+
+Other blocks:
+
+| Block | In Storyline |
+| --- | --- |
+| Flashcards | A shape per card: front is the Normal state, back is the Selected state, so a click flips it |
+| Checklist | A row per item that ticks through its Selected state |
+| Scenario | A layer per passage, a button per choice; an ending choice goes to the next slide |
+| Labelled graphic | The picture, a numbered marker per pin, and a layer per pin with its card |
+| Text entry | A Storyline text-entry field writing to a text variable |
+
+These five and the two above are written from forms found in real Storyline
+files but have not yet been opened in Storyline.
+
+**Tabs and accordions** become a button per panel and a layer
 per panel (the first one shows when the slide starts). A **progress** block
 becomes a text readout ("Slide 3 of 6", or the variable it follows). Sizes
 scale with the slide, so a 1920-wide project gets proportionally larger text

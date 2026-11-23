@@ -1888,3 +1888,16 @@ Large-media "Compress" is not built; the check only warns.
   courses published before the rename carry on working.
 
 - Marked as **alpha** in the editor, the welcome screen and the README.
+
+# v6.42
+
+## Save as Storyline: seven more block types
+- **Fill in the blank** saves as a freeform Text Entry question.
+- **Results** saves as a real Storyline result slide: a quiz with your pass
+  mark, the question slides listed in it, live score text, and Success and
+  Failure layers. Scores now report through Storyline's own quiz variables.
+- **Flashcards**, **checklist**, **scenario**, **labelled graphic** and
+  **text entry** each save as working Storyline objects built from states,
+  layers and text-entry fields.
+- Still an outlined box: video, slider, timer and code blocks.
+- Experimental until confirmed by opening the test files in Storyline.
