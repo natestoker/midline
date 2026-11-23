@@ -169,6 +169,7 @@ Other blocks:
 | Labelled graphic | The picture, a numbered marker per pin, and a layer per pin with its card |
 | Text entry | A Storyline text-entry field writing to a text variable |
 | Video | A Storyline video with a poster frame and captions. MP4 only; other formats stay an outlined box |
+| Slider, timer, code | A web object: a small page in a frame. The slider writes its value, and a countdown its "done" flag, to Storyline variables. These run in the published course, not in Storyline's slide preview |
 
 These and the two above are written from forms found in real Storyline
 files but have not yet been opened in Storyline.

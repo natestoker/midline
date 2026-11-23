@@ -19,7 +19,7 @@ export function StoryImportReport() {
         <p className="story-report-lead">
           {report.slides} {report.slides === 1 ? 'slide' : 'slides'} {report.saved ? 'saved' : 'imported'}.{' '}
           {report.saved
-            ? (report.warnings.length === 0 ? 'Everything in the project had a Storyline form.' : 'Storyline has no room for the things below, so they were left out. Open the file in Storyline to check it.')
+            ? (report.warnings.length === 0 ? 'Everything in the project had a Storyline form.' : 'A few things were saved differently or left out; they are listed below. Open the file in Storyline to check it.')
             : report.warnings.length === 0
             ? 'Everything in the file had an equivalent.'
             : `${report.warnings.length} ${report.warnings.length === 1 ? 'thing needs' : 'things need'} a look. Triggers that could not be converted are kept as JavaScript triggers that say what the original did.`}

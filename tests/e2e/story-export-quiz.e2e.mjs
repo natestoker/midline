@@ -23,7 +23,10 @@ const project = {
     slide('s6', 'Widgets', [
       { id: 'ck1', type: 'checklist', name: 'Checklist', x: 60, y: 60, w: 520, h: 300, props: { title: 'Before you click', items: [{ id: 'a', text: 'Check the sender' }, { id: 'b', text: 'Hover over the link' }] } },
       { id: 'te1', type: 'textEntry', name: 'Notes field', x: 60, y: 420, w: 520, h: 60, props: { placeholder: 'Your notes', fontSize: 18, multiline: false } },
-      { id: 'lg1', type: 'labeledGraphic', name: 'Inbox', x: 640, y: 60, w: 580, h: 560, props: { src: '', fit: 'cover', markers: [{ id: 'm1', x: 20, y: 30, title: 'Sender', body: 'Look at the address.' }, { id: 'm2', x: 70, y: 60, title: 'Link', body: 'Hover before you click.' }] } }]),
+      { id: 'lg1', type: 'labeledGraphic', name: 'Inbox', x: 640, y: 60, w: 580, h: 560, props: { src: '', fit: 'cover', markers: [{ id: 'm1', x: 20, y: 30, title: 'Sender', body: 'Look at the address.' }, { id: 'm2', x: 70, y: 60, title: 'Link', body: 'Hover before you click.' }] } },
+      { id: 'sl1', type: 'slider', name: 'Confidence', x: 60, y: 520, w: 520, h: 90, props: { label: 'How sure are you?', min: 0, max: 10, step: 1, defaultValue: 5, showValue: true } },
+      { id: 'tm1', type: 'timer', name: 'Countdown', x: 60, y: 620, w: 200, h: 70, props: { mode: 'countdown', seconds: 30, fontSize: 28, autoStart: true } },
+      { id: 'cd1', type: 'code', name: 'Custom', x: 300, y: 620, w: 280, h: 70, props: { html: '<b id="x">hi</b>', css: 'b{color:#0a7}', js: 'document.getElementById("x").textContent = "ran";' } }]),
     slide('s5', 'Results', [
       { id: 'r1', type: 'results', name: 'Results', x: 240, y: 140, w: 800, h: 420, props: { heading: 'Quiz results', passMessage: 'You passed.', failMessage: 'Not yet.', noScoreMessage: '', showPassMark: true, fontSize: 40, align: 'center' } },
       { id: 'v1', type: 'varDisplay', name: 'Score tile', x: 1040, y: 40, w: 200, h: 100, props: { reference: 'Score', label: 'Score', suffix: '%' } }])
@@ -35,7 +38,8 @@ await ed.getByRole('button', { name: /^File/ }).click();
 const [dl] = await Promise.all([ed.waitForEvent('download'), ed.locator('.menu-item', { hasText: 'Save as Storyline' }).click()]);
 const path = await dl.path();
 await ed.waitForSelector('.story-report');
-check('every block had a Storyline form', /Everything in the project/.test(await ed.locator('.story-report').innerText()), await ed.locator('.story-report').innerText());
+const report = await ed.locator('.story-report').innerText();
+check('the only note is that three blocks became web objects', /web objects/.test(report) && !/outlined box/.test(report) && (await ed.locator('.story-report-list li').count()) === 1, report);
 await ed.locator('.story-report .btn-accent').click();
 
 const zip = await JSZip.loadAsync(readFileSync(path));
@@ -70,6 +74,21 @@ check('a text entry block is a Storyline field with its own text variable', !!no
 const pins = [...widgets.matchAll(/<sldLayer g="([^"]+)"[^>]*name="([^"]*)"/g)];
 eq('a labelled graphic has a layer per marker', pins.map((m) => m[2]), ['Sender', 'Link']);
 check('each marker shows its own card', pins.every((m) => widgets.includes(`showG="${m[1]}"`)) && widgets.includes('Hover before you click.'));
+// Code, slider and timer: web objects
+const webAssets = [...story.matchAll(/<media g="([^"]+)"[^>]*type="Unknown"/g)].map((m) => m[1]);
+eq('slider, timer and code blocks each become a web object', [(widgets.match(/<web g=/g) ?? []).length, webAssets.length], [3, 3]);
+check('every web object points at its own zipped page', webAssets.every((g) => widgets.includes(`assetG="${g}"`)));
+const bins = Object.keys(zip.files).filter((n) => n.endsWith('.bin'));
+const pages = await Promise.all(bins.map(async (n) => (await JSZip.loadAsync(await zip.file(n).async('uint8array'))).file('index.html').async('string')));
+check('each zip holds one index.html', bins.length === 3 && pages.every((h) => h.startsWith('<!doctype html>')));
+const sliderPage = pages.find((h) => h.includes('type="range"')) ?? '';
+check('the slider writes its value to a Storyline number variable that exists', /sl\.set\("slider_sl1_value"/.test(sliderPage) && /<var [^>]*name="slider_sl1_value" dataType="num" val="5"/.test(story), sliderPage.slice(-200));
+check('the timer sets its done variable at zero', pages.some((h) => h.includes('sl.set("timer_tm1_done", true)')) && /<var [^>]*name="timer_tm1_done" dataType="bool"/.test(story));
+check('the code block page carries the author\'s code', pages.some((h) => h.includes('textContent = "ran"') && h.includes('b{color:#0a7}')));
+const thumbRels = [...widgets.matchAll(/<embedRefThumb>([^<]+)<\/embedRefThumb>/g)].map((m) => m[1]);
+const wRels = await text('story/slides/_rels/slide5.xml.rels');
+check('each web object thumbnail is a picture the slide lists under that id', thumbRels.length === 3 && thumbRels.every((id) => new RegExp(`Target="/story/media/R\\w+\\.jpg" Id="${id}"`).test(wRels)));
+check('content types cover bin', /Extension="bin" ContentType="application\/unknown"/.test(await text('[Content_Types].xml')));
 check('nothing in the project was left as an outlined box', !(pick + fill + cards + scen + widgets + res).includes('not converted'));
 
 // Result slide and its quiz

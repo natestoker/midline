@@ -1891,7 +1891,7 @@ Large-media "Compress" is not built; the check only warns.
 
 # v6.42
 
-## Save as Storyline: eight more block types
+## Save as Storyline: every block type now has a Storyline form
 - **Fill in the blank** saves as a freeform Text Entry question.
 - **Results** saves as a real Storyline result slide: a quiz with your pass
   mark, the question slides listed in it, live score text, and Success and
@@ -1903,5 +1903,8 @@ Large-media "Compress" is not built; the check only warns.
   (MP4 only).
 - Open Storyline now reads video: Storyline keeps MP4 in files named
   `.mpeg`, which were being skipped. Controls, loop and captions come in too.
-- Still an outlined box: slider, timer and code blocks.
+- **Slider, timer and code** blocks save as web objects. A slider writes its
+  value to a Storyline number variable and a countdown sets its "done" flag,
+  so Storyline triggers can use them. Every block type now has a Storyline
+  form; nothing is left as an outlined box.
 - Experimental until confirmed by opening the test files in Storyline.

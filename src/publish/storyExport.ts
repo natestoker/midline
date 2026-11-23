@@ -3,8 +3,8 @@ import type { SlideBackground, Action, AnimSpec, Block, Condition, Layer, Projec
 import { STORY_SHELL_BASE64 } from './storyShell';
 import { md5 } from './md5';
 import { encodeMp3 } from '../editor/audioBake';
-import { textEntryVariableName } from '../schema/factory';
-import { DRAG_DROP_INTR, FREE_TEXT_CHOICE, FREE_TEXT_INTR, PICK_MANY_INTR, PICK_ONE_INTR, RESULTS_INTR, TEXT_ENTRY_FIELD, VIDEO_OBJECT } from './storyQuizTemplates';
+import { sliderVariableName, textEntryVariableName, timerDoneVariableName } from '../schema/factory';
+import { DRAG_DROP_INTR, FREE_TEXT_CHOICE, FREE_TEXT_INTR, PICK_MANY_INTR, PICK_ONE_INTR, RESULTS_INTR, TEXT_ENTRY_FIELD, VIDEO_OBJECT, WEB_OBJECT } from './storyQuizTemplates';
 
 // Save a project as an Articulate Storyline 360 file.
 //
@@ -200,6 +200,9 @@ interface Ctx {
   audio: Map<string, AudioAsset>; // by hash of the MP3
   blockAudio: Map<string, AudioAsset>; // audio resolved for the slide being written, by block id
   videos: Map<string, VideoAsset>; // by hash of the MP4
+  webObjects: { g: string; file: string; bytes: Uint8Array; hash: string; name: string }[];
+  looseFiles: Map<string, Uint8Array>; // media files with no asset entry (web object thumbnails)
+  slideRelIds: Map<string, string>;    // media file -> the rel id a slide must use for it
   blockVideo: Map<string, VideoAsset>;
   question: { layers: string } | null; // the quiz question on the slide being written, if any
   extraLayers: string;   // layers made for tabs on this slide
@@ -212,7 +215,7 @@ interface Ctx {
   questionSlides: string[];     // slide ids (ours) that hold a question, in order
   resultTrigs: string;          // result-slide triggers for the slide being written
   isResultSlide: boolean;
-  extraVars: { g: string; name: string }[]; // text variables that text-entry fields write to
+  extraVars: { g: string; name: string; dataType?: 'text' | 'num' | 'bool'; val?: string }[]; // text variables that text-entry fields write to
   needsScore: boolean;   // something shows the score, so a Score variable is kept
   scoreG: string;        // that variable's id
   questionCount: number;
@@ -365,6 +368,91 @@ async function audioFor(ctx: Ctx, src: string, name: string, captions: string | 
   } catch {
     return null;
   }
+}
+
+// ---------- web objects ----------
+// Blocks with no Storyline object of their own (code, slider, timer) are
+// saved as a web object: a zipped index.html shown in a frame. The page
+// reaches Storyline's variables through the player in its parent window.
+const SL_BRIDGE = `
+var sl = { get: function (n) { try { return parent.GetPlayer().GetVar(n); } catch (e) { return undefined; } },
+           set: function (n, v) { try { parent.GetPlayer().SetVar(n, v); } catch (e) {} } };`;
+const safeVar = (name: string) => name.replace(/[^A-Za-z0-9_]/g, '_');
+// A widget can only set a Storyline variable that exists in the file.
+function ensureVar(ctx: Ctx, name: string, dataType: 'num' | 'bool', val: string): void {
+  if (ctx.project.variables.some((v) => v.name === name) || ctx.extraVars.some((v) => v.name === safeVar(name))) return;
+  ctx.extraVars.push({ g: guid(), name: safeVar(name), dataType, val });
+}
+const pageShell = (body: string, css: string, js: string) =>
+  `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;height:100%;font-family:"Segoe UI",system-ui,sans-serif;color:#1c211d;background:transparent}${css}</style></head><body>${body}<script>${SL_BRIDGE}\n${js.replace(/<\/script/gi, '<\\/script')}</script></body></html>`;
+
+function widgetHtml(ctx: Ctx, b: Block): { html: string; label: string } | null {
+  const p = b.props as unknown as Record<string, unknown>;
+  if (b.type === 'code') {
+    // The block's own code, with a small stand-in for Midline's forge object.
+    const forge = `var forge = { getVariable: sl.get, setVariable: sl.set, get: sl.get, set: sl.set, complete: function () {}, goToSlide: function () {}, onVariableChange: function () {} };`;
+    return { label: 'Code block', html: pageShell(String(p.html ?? ''), String(p.css ?? ''), `${forge}\ntry { (function () { ${String(p.js ?? '')}\n})(); } catch (e) { console.error(e); }`) };
+  }
+  if (b.type === 'slider') {
+    const min = Number(p.min ?? 0), max = Number(p.max ?? 100), step = Number(p.step ?? 1) || 1, start = Number(p.defaultValue ?? min);
+    const name = safeVar(sliderVariableName(b.id));
+    ensureVar(ctx, sliderVariableName(b.id), 'num', String(start));
+    const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    return {
+      label: 'Slider',
+      html: pageShell(
+        `<div class="w"><label for="r">${esc(String(p.label ?? ''))}</label><div class="row"><input id="r" type="range" min="${min}" max="${max}" step="${step}" value="${start}">${p.showValue === false ? '' : `<output id="o">${start}</output>`}</div></div>`,
+        `.w{box-sizing:border-box;height:100%;padding:8px 12px;display:flex;flex-direction:column;justify-content:center;gap:8px;font-size:16px}.row{display:flex;align-items:center;gap:12px}input{flex:1;accent-color:#1b7f4b}output{min-width:3ch;font-weight:700;text-align:right}`,
+        `var r = document.getElementById('r'), o = document.getElementById('o');\nfunction push() { var v = Number(r.value); if (o) o.textContent = v; sl.set(${JSON.stringify(name)}, v); }\nr.addEventListener('input', push); push();`)
+    };
+  }
+  if (b.type === 'timer') {
+    const down = p.mode === 'countdown';
+    const secs = Math.max(0, Number(p.seconds ?? 60));
+    const name = safeVar(timerDoneVariableName(b.id));
+    ensureVar(ctx, timerDoneVariableName(b.id), 'bool', 'False');
+    return {
+      label: 'Timer',
+      html: pageShell(
+        `<div class="t" id="t" role="timer" aria-live="off"></div>`,
+        `.t{height:100%;display:flex;align-items:center;justify-content:center;font-weight:700;font-variant-numeric:tabular-nums;font-size:${Math.max(14, Number(p.fontSize ?? 32))}px;color:${/^#[0-9a-f]{3,8}$/i.test(String(p.color ?? '')) ? String(p.color) : '#1c211d'}}`,
+        `var el = document.getElementById('t'), down = ${down}, total = ${secs}, t0 = Date.now(), done = false;\nfunction fmt(s) { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }\nfunction tick() { var e = (Date.now() - t0) / 1000; var s = down ? total - e : e; el.textContent = fmt(s);\n  if (down && s <= 0 && !done) { done = true; sl.set(${JSON.stringify(name)}, true); return; }\n  setTimeout(tick, 250); }\ntick();`)
+    };
+  }
+  return null;
+}
+
+async function webObjectXml(ctx: Ctx, b: Block, z: number, totalMs: number): Promise<string | null> {
+  const w = widgetHtml(ctx, b);
+  if (!w) return null;
+  const inner = new JSZip();
+  inner.file('index.html', w.html, { createFolders: false });
+  const bytes = await inner.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
+  const g = guid();
+  const asset = { g, file: `${partId(g)}.bin`, bytes, hash: md5(bytes), name: `${(b.name || w.label).replace(/[\\/:*?"<>|]/g, '_')}.zip` };
+  ctx.webObjects.push(asset);
+  ctx.slideMedia.add(asset.file);
+  // The thumbnail is a loose picture named after the object's morph key and
+  // referenced by its relationship id.
+  const morph = shortId(11);
+  const thumbFile = `R${morph}.jpg`;
+  const relId = `R${guid().replace(/-/g, '').slice(0, 16)}`;
+  const c = document.createElement('canvas');
+  c.width = Math.max(40, Math.round(b.w)); c.height = Math.max(30, Math.round(b.h));
+  const d = c.getContext('2d')!;
+  d.fillStyle = '#f4f7f5'; d.fillRect(0, 0, c.width, c.height);
+  d.fillStyle = '#5b6660'; d.font = '600 16px sans-serif'; d.textAlign = 'center'; d.textBaseline = 'middle';
+  d.fillText(w.label, c.width / 2, c.height / 2);
+  ctx.looseFiles.set(thumbFile, Uint8Array.from(atob(c.toDataURL('image/jpeg', 0.8).split(',')[1]), (ch) => ch.charCodeAt(0)));
+  ctx.slideMedia.add(thumbFile);
+  ctx.slideRelIds.set(thumbFile, relId);
+  return WEB_OBJECT
+    .replace(/ (g|verG)="[0-9a-f-]{36}"/g, (_m, key) => ` ${key}="${guid()}"`)
+    .replace('@@G@@', ctx.blockG.get(b.id)!).replace('@@NAME@@', xa(b.name || w.label)).replace('@@Z@@', String(z))
+    .replace('@@ASSET@@', g).replace('@@DUR@@', String(totalMs))
+    .replace('@@W@@', String(ctx.w)).replace('@@H@@', String(ctx.h))
+    .replace('@@L@@', n(b.x)).replace('@@T@@', n(b.y)).replace('@@R@@', n(b.x + b.w)).replace('@@B@@', n(b.y + b.h))
+    .replace('@@MORPH@@', morph).replace('@@URL@@', `C:\\Midline\\${xa(asset.name.replace(/\.zip$/, ''))}\\index.html`).replace('@@THUMBREL@@', relId);
 }
 
 // ---------- video ----------
@@ -1232,6 +1320,10 @@ async function shapeList(ctx: Ctx, layer: Layer, totalMs: number, blockTrigs: Ma
     }
     const vid = ctx.blockVideo.get(b.id);
     if (vid) { out += videoXml(ctx, b, vid, z++); continue; }
+    if (b.type === 'code' || b.type === 'slider' || b.type === 'timer') {
+      const wx = await webObjectXml(ctx, b, z, totalMs);
+      if (wx) { out += wx; z++; warn(ctx, 'code, slider and timer blocks were saved as web objects: they run when the course is published, not in Storyline\'s slide preview'); continue; }
+    }
     if (b.type === 'checklist') {
       const c = checklistXml(ctx, b, z, totalMs);
       out += c.shapes; z += c.count;
@@ -1319,7 +1411,7 @@ export async function exportStory(project: Project): Promise<StoryExportResult> 
   const first = project.slides[0];
   const ctx: Ctx = {
     project, w: first?.width ?? 1280, h: first?.height ?? 720, warnings: new Map(),
-    slideG: new Map(), layerG: new Map(), blockG: new Map(), varG: new Map(), media: new Map(), slideMedia: new Set(), audio: new Map(), blockAudio: new Map(), videos: new Map(), blockVideo: new Map(), question: null, extraLayers: '', addedLayers: 0, showOnStart: [], quiz: null, hasResults: false, questionSlides: [], resultTrigs: '', isResultSlide: false, extraVars: [], needsScore: false, scoreG: guid(), questionCount: 0
+    slideG: new Map(), layerG: new Map(), blockG: new Map(), varG: new Map(), media: new Map(), slideMedia: new Set(), audio: new Map(), blockAudio: new Map(), videos: new Map(), blockVideo: new Map(), webObjects: [], looseFiles: new Map(), slideRelIds: new Map(), question: null, extraLayers: '', addedLayers: 0, showOnStart: [], quiz: null, hasResults: false, questionSlides: [], resultTrigs: '', isResultSlide: false, extraVars: [], needsScore: false, scoreG: guid(), questionCount: 0
   };
   for (const s of project.slides) {
     ctx.slideG.set(s.id, guid());
@@ -1354,7 +1446,7 @@ export async function exportStory(project: Project): Promise<StoryExportResult> 
     const xml = (await slideXml(ctx, slide, layoutG)).replace(/<textMargin [^>]*\/>/g, (m) => m.replace(/"(-?\d+\.\d+)"/g, (_, v) => `"${Math.round(Number(v))}"`));
     slideXmls.push([name, xml]);
     if (ctx.slideMedia.size) {
-      put(`story/slides/_rels/${name}.rels`, relsXml([...ctx.slideMedia].flatMap((f) => (f.endsWith('.vtt') ? [f, f] : [f])).map((f) => ({ type: 'media', target: `/story/media/${f}`, id: `R${guid().replace(/-/g, '').slice(0, 16)}` }))));
+      put(`story/slides/_rels/${name}.rels`, relsXml([...ctx.slideMedia].flatMap((f) => (f.endsWith('.vtt') ? [f, f] : [f])).map((f) => ({ type: 'media', target: `/story/media/${f}`, id: ctx.slideRelIds.get(f) ?? `R${guid().replace(/-/g, '').slice(0, 16)}` }))));
     }
     const id = partId(ctx.slideG.get(slide.id)!);
     slideIds.push(id);
@@ -1371,6 +1463,8 @@ export async function exportStory(project: Project): Promise<StoryExportResult> 
   }
   for (const m of ctx.media.values()) put(`story/media/${m.file}`, m.bytes);
   for (const a of ctx.audio.values()) { put(`story/media/${a.file}`, a.bytes); if (a.vtt) put(`story/media/${a.vtt.file}`, a.vtt.bytes); }
+  for (const w of ctx.webObjects) put(`story/media/${w.file}`, w.bytes);
+  for (const [file, bytes] of ctx.looseFiles) put(`story/media/${file}`, bytes);
   for (const v of ctx.videos.values()) { put(`story/media/${v.file}`, v.bytes); if (v.vtt) put(`story/media/${v.vtt.file}`, v.vtt.bytes); }
 
   // story.xml: variables, media list, slide order, menu entries, slide size.
@@ -1391,7 +1485,7 @@ export async function exportStory(project: Project): Promise<StoryExportResult> 
     let name = v.name;
     while (taken.has(name)) name += '_';
     taken.add(name);
-    return `<var g="${v.g}" verG="${guid()}" name="${name}" dataType="text" val="" type="user" propPath="" isRandom="false" randomMin="0" randomMax="0" defaultEmptyIfZero="false" />`;
+    return `<var g="${v.g}" verG="${guid()}" name="${name}" dataType="${v.dataType ?? 'text'}" val="${v.val ?? ''}" type="user" propPath="" isRandom="false" randomMin="0" randomMax="0" defaultEmptyIfZero="false" />`;
   }).join('');
   // The quiz: Storyline reads its score through four variables whose path is
   // the quiz's own part id.
@@ -1431,7 +1525,11 @@ export async function exportStory(project: Project): Promise<StoryExportResult> 
     const cc = c.vtt ? ` ClosedCaptionsAssetGuid="${c.vtt.g}" hasClosedCaptions="true"` : ' hasClosedCaptions="false"';
     return `<video g="${c.g}" verG="${guid()}" type="Mp4" displayName="${xa(c.name)}" origFile="${file}" source="${file}" useCnt="0" bytes="${c.bytes.length}" modDT="${now}" addDT="${now}"${cc} altFormatG="${ZERO}" as="as3" origModDt="${now}" origBytes="${c.bytes.length}" compressedOnInsert="false"><userState w="${c.w}" h="${c.h}" /><md5Checksum><stream>${c.hash}</stream><source>${c.hash}</source></md5Checksum></video>`;
   }).join('');
-  const mediaXml = pictureXml + vttXml + vidVttXml + audioXml + videoXmlList;
+  const webXml = ctx.webObjects.map((w) => {
+    const file = `C:\\Midline\\${xa(w.name)}`;
+    return `<media g="${w.g}" verG="${guid()}" type="Unknown" displayName="${xa(w.name.replace(/\.zip$/, '.unknown'))}" origFile="${file}" source="${file}" useCnt="0" bytes="${w.bytes.length}" modDT="${now}" addDT="${now}"><md5Checksum><stream>${w.hash}</stream><source>${w.hash}</source></md5Checksum></media>`;
+  }).join('');
+  const mediaXml = pictureXml + vttXml + vidVttXml + audioXml + videoXmlList + webXml;
   story = story.replace('<mediaLst><mediaLst /></mediaLst>', mediaXml ? `<mediaLst><mediaLst>${mediaXml}</mediaLst></mediaLst>` : '<mediaLst><mediaLst /></mediaLst>');
   // Storyline lists every asset twice: in story.xml and in the theme.
   if (mediaXml) {
@@ -1455,6 +1553,7 @@ export async function exportStory(project: Project): Promise<StoryExportResult> 
   if (ctx.audio.size) addType('mp3', 'audio/mp3');
   if ([...ctx.audio.values()].some((a) => a.vtt) || [...ctx.videos.values()].some((v) => v.vtt)) addType('vtt', 'text/vtt');
   if (ctx.videos.size) addType('mpeg', 'video/mpeg');
+  if (ctx.webObjects.length) addType('bin', 'application/unknown');
   if (ctx.media.size && !types.includes('Extension="png"')) {
     types = types.replace('<Default Extension="jpg" ContentType="image/jpeg" />', '<Default Extension="jpg" ContentType="image/jpeg" /><Default Extension="png" ContentType="image/png" />');
   }

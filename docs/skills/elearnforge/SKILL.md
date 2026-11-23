@@ -95,8 +95,8 @@ before touching `storyImport.ts` or `storyExport.ts`.
 - Audio is written as MP3 plus captions (confirmed in Storyline).
 - Fill-in, result slides, flashcards, checklist, scenario, labelled graphic,
   text entry and video (MP4) are written (v6.42) but not yet confirmed in
-  Storyline.
-- **Not written yet:** slider, timer, code.
+  Storyline. Slider, timer and code blocks are saved as web objects (also
+  unconfirmed). No block type is left as an outlined box.
 - Font sizes scale with slide width on both sides
   (`pt = px * 0.75 * 960 / slideWidth`).
 - Client `.story` files are real courses. Keep them out of the repo.

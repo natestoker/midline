@@ -15,12 +15,11 @@ to a real course, not by difficulty.
 
 ## Status, 23 November 2026
 
-- **Written, waiting on a Storyline check (round 16, Z1 to Z8):** fill-in,
+- **Written, waiting on a Storyline check (round 16, Z1 to Z9):** fill-in,
   result slide, flashcards, scenario, checklist, labelled graphic, text
   entry, video.
-- **Blocked on a sample file:** slider. No real `.story` on hand has a slider
-  to copy from.
-- **No Storyline equivalent planned:** timer and code blocks.
+- **Written as web objects, same round (Z9):** slider, timer and code
+  blocks. A native Storyline slider would still need a sample file to copy.
 
 ## Before starting
 
