@@ -217,6 +217,20 @@ Confirmed in Storyline 3.130, with and without captions.
   g, or zeros). Works on layers too.
 - Raise the slide's `tmProps min` to cover start plus duration.
 
+## Quiz score and LMS tracking
+
+Not yet confirmed in Storyline (v6.45).
+
+- A score reaches the LMS only through a result slide. `story.xml` holds
+  `<quiz>` in `<quizMgr><quizLst>` with `passScore`, `resultSldG` and a
+  `<questionIdLst>` of question slide ids.
+- Tracking by that slide is `lmsResultSlideG="<result slide g>"` on
+  `<quizMgr>`; real files leave `trackMode="def"` beside it. A course tracked
+  by slides viewed has `trackMode="slide"` and a zero guid.
+- `Quiz1.ScorePercent` and friends are filled in only when the result slide's
+  `submitQuizTrig` runs. To show a score earlier, keep a user `Score` number
+  and add to it from each Correct layer. Use whole numbers in `dblVal`.
+
 ## Not solved yet
 
 Video objects, fill-in-the-blank, sliders, result slides, and the

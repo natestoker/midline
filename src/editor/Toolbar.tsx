@@ -108,13 +108,13 @@ export function Toolbar({ saveState }: { saveState: 'saved' | 'saving' }) {
   const saveStory = async () => {
     try {
       const { exportStory } = await import('../publish/storyExport');
-      const { blob, warnings } = await exportStory(project);
+      const { blob, warnings, slides } = await exportStory(project);
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = `${(project.title || 'course').replace(/[\\/:*?"<>|]/g, '_')}.story`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-      useUiStore.getState().setStoryImportReport({ fileName: a.download, slides: project.slides.length, warnings, saved: true });
+      useUiStore.getState().setStoryImportReport({ fileName: a.download, slides, warnings, saved: true });
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Could not save a Storyline file.');
     }

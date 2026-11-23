@@ -3,7 +3,7 @@ import type { SlideBackground, Action, AnimSpec, Block, Condition, Layer, Projec
 import { STORY_SHELL_BASE64 } from './storyShell';
 import { md5 } from './md5';
 import { encodeMp3 } from '../editor/audioBake';
-import { sliderVariableName, textEntryVariableName, timerDoneVariableName } from '../schema/factory';
+import { createBlock, createSlide, sliderVariableName, textEntryVariableName, timerDoneVariableName } from '../schema/factory';
 import { DRAG_DROP_INTR, FREE_TEXT_CHOICE, FREE_TEXT_INTR, PICK_MANY_INTR, PICK_ONE_INTR, RESULTS_INTR, TEXT_ENTRY_FIELD, VIDEO_OBJECT, WEB_OBJECT } from './storyQuizTemplates';
 
 // Save a project as an Articulate Storyline 360 file.
@@ -20,7 +20,7 @@ import { DRAG_DROP_INTR, FREE_TEXT_CHOICE, FREE_TEXT_INTR, PICK_MANY_INTR, PICK_
 // timing, common entrance animations, notes, variables, and the triggers that
 // have a confirmed Storyline form.
 
-export interface StoryExportResult { blob: Blob; warnings: string[] }
+export interface StoryExportResult { blob: Blob; warnings: string[]; slides: number }
 
 const ZERO = '00000000-0000-0000-0000-000000000000';
 const PX_TO_PT = 3 / 4;
@@ -102,7 +102,21 @@ function paintBg(fill: string | null, line: string | null, lineW: number): strin
 interface Run { text: string; bold: boolean; italic: boolean; underline: boolean; strike: boolean; sup: boolean; color: string; size: number; font: string }
 interface Para { runs: Run[]; align: string; list: '' | 'ul' | 'ol' }
 
-function htmlToParas(html: string, base: { color: string; size: number; font: string; align: string; bold: boolean }): Para[] {
+// Midline's built-in score references, as the Storyline names (or plain
+// numbers) they are written as on the slide being saved.
+let scoreRefs: Record<string, string> = {};
+let usedStandInScore = false;
+function mapScoreRefs(html: string): string {
+  return html.replace(/%([A-Za-z_]\w*)%/g, (m, name: string) => {
+    const to = scoreRefs[name];
+    if (to === undefined) return m;
+    if (to === '%Score%') usedStandInScore = true;
+    return to;
+  });
+}
+
+function htmlToParas(rawHtml: string, base: { color: string; size: number; font: string; align: string; bold: boolean }): Para[] {
+  const html = mapScoreRefs(rawHtml);
   const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
   const root = doc.body.firstElementChild as HTMLElement;
   const paras: Para[] = [];
@@ -216,6 +230,7 @@ interface Ctx {
   resultTrigs: string;          // result-slide triggers for the slide being written
   isResultSlide: boolean;
   extraVars: { g: string; name: string; dataType?: 'text' | 'num' | 'bool'; val?: string }[]; // text variables that text-entry fields write to
+  onResultSlide: boolean;      // the slide being written holds the results block
   needsScore: boolean;   // something shows the score, so a Score variable is kept
   scoreG: string;        // that variable's id
   questionCount: number;
@@ -700,8 +715,11 @@ async function shapeXml(ctx: Ctx, b: Block, z: number, totalMs: number, trigs: s
     const raw = String(p.reference ?? '');
     const builtIn = ({ ProgressPercent: 'Project.Progress', SlideNumber: 'Project.SlideNumber', CurrentSlide: 'Project.SlideNumber', TotalSlides: 'Project.TotalSlides', ViewedSlides: 'Project.SlidesViewed', SlideName: 'Project.SlideTitle' } as Record<string, string>)[raw];
     const isScore = raw === 'Score' || raw === 'ScorePercent';
-    if (isScore && !ctx.hasResults) ctx.needsScore = true;
-    const ref = builtIn ?? (isScore ? (ctx.hasResults ? 'Quiz1.ScorePercent' : 'Score') : raw.replace(/[^A-Za-z0-9_.]/g, '_'));
+    // The quiz's own score is only filled in once the result slide submits
+    // it, so anywhere else the running Score variable is shown.
+    const live = ctx.hasResults && ctx.onResultSlide;
+    if (isScore && !live) ctx.needsScore = true;
+    const ref = builtIn ?? (isScore ? (live ? 'Quiz1.ScorePercent' : 'Score') : raw.replace(/[^A-Za-z0-9_.]/g, '_'));
     const label = p.label ? `<p><span style="font-size: ${Math.round((Number(p.fontSize) || 32) * 0.4)}px">${xa(String(p.label))}</span></p>` : '';
     if (p.tile) { tag = 'roundRect'; geom = '<prstGeom><roundRect vertexSet="true" radius="0.1" /></prstGeom>'; fill = 'FFFFFF'; line = 'C5CEC7'; lineW = 1; }
     text = { html: `<p>${xa(String(p.prefix ?? ''))}%${ref}%${xa(String(p.suffix ?? ''))}</p>${label}`, size: Math.min(Number(p.fontSize) || 32, Math.max(14, Math.round(b.w / 5))), color: hex6(p.color as string, '0B6B45'), font: DEFAULT_FONT, align: String(p.align ?? 'center'), valign: 'center', bold: true, inset: { l: 7, t: 3, r: 7, b: 3 } };
@@ -1378,6 +1396,14 @@ async function shapeList(ctx: Ctx, layer: Layer, totalMs: number, blockTrigs: Ma
 
 async function slideXml(ctx: Ctx, slide: Slide, layoutG: string): Promise<string> {
   const g = ctx.slideG.get(slide.id)!;
+  ctx.onResultSlide = flatBlocks(slide.layers[0]?.blocks ?? []).some((b) => b.type === 'results');
+  if (ctx.hasResults) {
+    const graded = ctx.project.slides.filter((s) => !s.lightbox && flatBlocks(s.layers[0]?.blocks ?? []).some((b) => QUESTION_TYPES.has(b.type))).length;
+    scoreRefs = {
+      Score: ctx.onResultSlide ? '%Quiz1.ScorePercent%' : '%Score%', ScorePercent: ctx.onResultSlide ? '%Quiz1.ScorePercent%' : '%Score%',
+      PassPercent: '%Quiz1.PassPercent%', ScorePoints: '%Quiz1.ScorePoints%', PassPoints: '%Quiz1.PassPoints%', MaxPoints: String(graded * 10)
+    };
+  } else scoreRefs = {};
   ctx.blockAudio = new Map(); ctx.blockVideo = new Map();
   const audioEnd = await prepareAudio(ctx, slide.layers[0], slide.timeline?.captionsVtt ?? null);
   const totalMs = Math.max(5000, Math.round((slide.timeline?.duration ?? 5) * 1000), audioEnd);
@@ -1402,7 +1428,26 @@ const BOM = '\uFEFF';
 const relsXml = (items: { type: string; target: string; id: string }[]) =>
   `${BOM}<?xml version="1.0" encoding="utf-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${items.map((r) => `<Relationship Type="${r.type}" Target="${r.target}" Id="${r.id}" />`).join('')}</Relationships>`;
 
-export async function exportStory(project: Project): Promise<StoryExportResult> {
+// Storyline only reports a score to an LMS through a result slide. A course
+// with graded questions and no results block gets one added at the end, so
+// the saved file has a real quiz to track.
+function withResultSlide(project: Project): Project {
+  const base = (s: Slide) => flatBlocks(s.layers[0]?.blocks ?? []);
+  const graded = project.slides.some((s) => !s.lightbox && base(s).some((b) => QUESTION_TYPES.has(b.type)));
+  if (!graded || project.slides.some((s) => base(s).some((b) => b.type === 'results'))) return project;
+  const first = project.slides[0];
+  const slide = createSlide('Results');
+  slide.width = first.width; slide.height = first.height;
+  if (first.background) slide.background = first.background;
+  const w = Math.round(first.width * 0.6), h = Math.round(first.height * 0.6);
+  const block = createBlock('results', Math.round((first.width - w) / 2), Math.round((first.height - h) / 2));
+  block.w = w; block.h = h;
+  slide.layers[0].blocks.push(block);
+  return { ...project, slides: [...project.slides, slide] };
+}
+
+export async function exportStory(input: Project): Promise<StoryExportResult> {
+  const project = withResultSlide(input);
   const zip = await JSZip.loadAsync(STORY_SHELL_BASE64, { base64: true });
   // No folder entries: a .story is an OPC package, and Storyline's reader
   // rejects a zip that lists directories as entries.
@@ -1411,7 +1456,7 @@ export async function exportStory(project: Project): Promise<StoryExportResult> 
   const first = project.slides[0];
   const ctx: Ctx = {
     project, w: first?.width ?? 1280, h: first?.height ?? 720, warnings: new Map(),
-    slideG: new Map(), layerG: new Map(), blockG: new Map(), varG: new Map(), media: new Map(), slideMedia: new Set(), audio: new Map(), blockAudio: new Map(), videos: new Map(), blockVideo: new Map(), webObjects: [], looseFiles: new Map(), slideRelIds: new Map(), question: null, extraLayers: '', addedLayers: 0, showOnStart: [], quiz: null, hasResults: false, questionSlides: [], resultTrigs: '', isResultSlide: false, extraVars: [], needsScore: false, scoreG: guid(), questionCount: 0
+    slideG: new Map(), layerG: new Map(), blockG: new Map(), varG: new Map(), media: new Map(), slideMedia: new Set(), audio: new Map(), blockAudio: new Map(), videos: new Map(), blockVideo: new Map(), webObjects: [], looseFiles: new Map(), slideRelIds: new Map(), question: null, extraLayers: '', addedLayers: 0, showOnStart: [], quiz: null, hasResults: false, questionSlides: [], resultTrigs: '', isResultSlide: false, extraVars: [], onResultSlide: false, needsScore: false, scoreG: guid(), questionCount: 0
   };
   for (const s of project.slides) {
     ctx.slideG.set(s.id, guid());
@@ -1426,6 +1471,7 @@ export async function exportStory(project: Project): Promise<StoryExportResult> 
   if (ctx.hasResults) ctx.quiz = { g: guid(), resultSlideG: ZERO, score: guid(), scorePct: guid(), pass: guid(), passPct: guid() };
   if (project.slides.some((s) => s.width !== ctx.w || s.height !== ctx.h)) warn(ctx, 'slides of different sizes were all saved at the size of the first slide');
   if (project.banks?.length) warn(ctx, 'question banks were left out');
+  if (project !== input) warn(ctx, 'a Results slide was added at the end so Storyline can report the quiz score');
 
   // The shell's one slide: its layout, relationship and files go; ours come in.
   const oldSlide = await read('story/slides/slide.xml');
@@ -1454,9 +1500,16 @@ export async function exportStory(project: Project): Promise<StoryExportResult> 
     overrides += `<Override PartName="/story/slides/${name}" ContentType="application/slide+xml" />`;
   }
   // The score step depends on how many questions the whole course has.
+  if (usedStandInScore) ctx.needsScore = true;
+  usedStandInScore = false; scoreRefs = {};
   const keepScore = ctx.needsScore && !project.variables.some((v) => v.name === 'Score');
-  const step = n(Math.round((100 / Math.max(1, ctx.questionCount)) * 100) / 100);
+  // Whole numbers only, shared out so a full set of right answers is 100.
+  const count = Math.max(1, ctx.questionCount);
+  let asked = 0;
   for (const [name, xml] of slideXmls) {
+    const has = xml.includes('@@SCORE_STEP@@');
+    const step = String(Math.floor(100 / count) + (has && asked < 100 % count ? 1 : 0));
+    if (has) asked++;
     put(`story/slides/${name}`, BOM + (keepScore
       ? xml.split('@@SCORE_STEP@@').join(step)
       : xml.replace(/<trigLst>(?:(?!<\/trigLst>).)*@@SCORE_STEP@@(?:(?!<\/trigLst>).)*<\/trigLst>/g, '<trigLst />')));
@@ -1500,6 +1553,9 @@ export async function exportStory(project: Project): Promise<StoryExportResult> 
     const quizXml = `<quiz g="${q.g}" verG="${guid()}" timed="false" name="Quiz1" passScore="${pass}" timeLimit="PT1H" timerMode="course" passPoints="${q.pass}" passPct="${q.passPct}" scorePoints="${q.score}" scorePct="${q.scorePct}" passG="${ZERO}" totalQuizzesG="${ZERO}" passedQuizzesG="${ZERO}" failedQuizzesG="${ZERO}" resultSldG="${q.resultSlideG}" resultMode="qstn" showcorrectincorrectinreview="true" reviewincorrectquestionsonly="false" resetincorrectquestionsonly="false" mustPass="false" onlyScoreViewedQuestions="false" roundUpScorePercent="false">${items ? `<questionIdLst>${items}</questionIdLst>` : '<questionIdLst />'}<dataLst /></quiz>`;
     if (!story.includes('<quizLst />')) warn(ctx, 'the result slide could not be linked to a quiz in the Storyline file');
     story = story.replace('<quizLst />', `<quizLst>${quizXml}</quizLst>`);
+    // Track the course by this result slide: it is what an LMS gets the
+    // score and pass or fail from.
+    story = story.replace(/(<quizMgr [^>]*?)lmsResultSlideG="[^"]*"/, `$1lmsResultSlideG="${q.resultSlideG}"`);
     if (!/<quizMgr[^>]*><defaults /.test(story)) story = story.replace(/(<quizMgr [^>]*>)/, `$1<defaults ${gv()} points="10" attempts="1" shuffle="true" allowSkip="false" gradFdbk="true" survFdbk="false" />`);
   }
   story = story.replace('</varLst>', `${vars}${scoreVar}${entryVars}${quizVars}</varLst>`);
@@ -1570,5 +1626,5 @@ export async function exportStory(project: Project): Promise<StoryExportResult> 
   put('docProps/summary.xml', BOM + summary);
 
   const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', mimeType: 'application/octet-stream' });
-  return { blob, warnings: [...ctx.warnings].map(([m, c]) => (c > 1 ? `${m} (${c} times)` : m)) };
+  return { blob, slides: project.slides.length, warnings: [...ctx.warnings].map(([m, c]) => (c > 1 ? `${m} (${c} times)` : m)) };
 }

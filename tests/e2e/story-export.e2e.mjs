@@ -30,7 +30,8 @@ const story = await text('story/story.xml');
 const rels = await text('story/_rels/story.xml.rels');
 const types = await text('[Content_Types].xml');
 const slideRels = [...rels.matchAll(/Type="slide" Target="\/([^"]+)" Id="([^"]+)"/g)];
-eq('one slide part per slide', slideRels.length, before.slides.length);
+// The demo has questions and no results block, so a Results slide is added.
+eq('one slide part per slide, plus the added Results slide', slideRels.length, before.slides.length + 1);
 check('every slide part exists and is declared', slideRels.every((m) => zip.file(m[1]) && types.includes(`PartName="/${m[1]}"`)));
 eq('the scene lists the slides in order', [...story.match(/<sldIdLst>(.*?)<\/sldIdLst>/)[1].matchAll(/<sldId>([^<]+)/g)].map((m) => m[1]), slideRels.map((m) => m[2]));
 check('the masters, theme and player settings from the blank project are kept', ['story/playerProps.xml', 'story/theme/theme.xml', 'story/slideMasters/slideMaster.xml'].every((p) => zip.file(p)));
@@ -62,13 +63,13 @@ const after = await ed.evaluate(() => {
   const p = window.__forgeStore.getState().project;
   return { slides: p.slides.map((s) => s.name), vars: p.variables.map((v) => v.name), layers: p.slides.map((s) => s.layers.length), drag: p.slides.map((s) => s.layers[0].blocks.filter((b) => b.type === 'dragDrop').length), text: p.slides[0].layers[0].blocks.filter((b) => b.type === 'text').length, quizTriggers: p.slides.flatMap((s) => s.triggers.filter((t) => t.actions.some((x) => x.type === 'showLayer' && ['Correct', 'Incorrect'].includes(s.layers.find((l) => l.id === x.layerId)?.name)))).length, jumps: p.slides.flatMap((s) => s.triggers).filter((t) => ['goToSlide', 'nextSlide'].includes(t.actions[0].type)).length };
 });
-eq('slides survive the round trip', after.slides, before.slides);
+eq('slides survive the round trip, with Results at the end', after.slides, [...before.slides, 'Results']);
 // A quiz block is saved as a Storyline question, which adds its two feedback layers.
 // A tab set adds a layer per panel as well.
 // A pick question keeps its Storyline shapes, so its two feedback layers
 // come back too. A drag-and-drop question comes back as the block it was.
-eq('layers survive the round trip (a pick question adds Correct and Incorrect, tabs add one per panel)', after.layers, before.layers.map((n, i) => n + (before.quiz[i] ? 2 : 0) + before.tabs[i]));
-eq('drag and drop comes back as a drag-and-drop block', after.drag, before.drag);
+eq('layers survive the round trip (a pick question adds Correct and Incorrect, tabs add one per panel)', after.layers, [...before.layers.map((n, i) => n + (before.quiz[i] ? 2 : 0) + before.tabs[i]), 3]);
+eq('drag and drop comes back as a drag-and-drop block', after.drag, [...before.drag, 0]);
 check('the question comes back as a working pick question', after.quizTriggers >= 2, String(after.quizTriggers));
 // The demo shows a score, so the export adds a Score number that each
 // question's Correct layer feeds.

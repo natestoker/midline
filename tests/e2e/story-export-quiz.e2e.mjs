@@ -95,6 +95,7 @@ check('nothing in the project was left as an outlined box', !(pick + fill + card
 const quiz = /<quiz g="([^"]+)"[^>]*passScore="(\d+)"[^>]*resultSldG="([^"]+)"/.exec(story);
 check('the story has one quiz with the course pass mark, pointing at the result slide', !!quiz && quiz[2] === '60' && quiz[3] === gOf(res), quiz ? quiz.slice(1).join(' ') : 'no quiz');
 eq('the quiz lists the question slides in order', [...(/<questionIdLst>(.*?)<\/questionIdLst>/.exec(story)?.[1] ?? '').matchAll(/<item>([^<]+)<\/item>/g)].map((m) => m[1]), [gOf(pick), gOf(fill)]);
+check('the course is tracked by that result slide', !!quiz && story.includes(`lmsResultSlideG="${quiz[3]}"`), /lmsResultSlideG="[^"]*"/.exec(story)?.[0]);
 const B62 = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
 const partId = (g) => { const p = g.split('-'); let v = BigInt('0x' + p[0]) | (BigInt('0x' + p[1]) << 32n) | (BigInt('0x' + p[2]) << 48n); let o = ''; while (v > 0n) { o = B62[Number(v % 62n)] + o; v /= 62n; } return o; };
 check('the four score variables are named from the quiz id', !!quiz && ['PercentScore', 'Score', 'PassScore', 'PassPercent'].every((prop) => story.includes(`propPath="_player.${partId(quiz[1])}.$${prop}"`)));
@@ -144,6 +145,39 @@ await ed.locator('input[aria-label="Storyline file"]').setInputFiles({ name: 'Vi
 await ed.waitForSelector('.story-report'); await ed.locator('.story-report .btn-accent').click();
 const vBack = await ed.evaluate(() => { const b = window.__forgeStore.getState().project.slides[0].layers[0].blocks.find((x) => x.type === 'video'); return b ? { src: String(b.props.src).slice(0, 22), controls: b.props.controls, cc: b.props.captionsVtt ?? '' } : null; });
 check('the video comes back as a video block with its captions', !!vBack && vBack.src === 'data:video/mp4;base64,' && vBack.controls === true && vBack.cc.includes('Test clip'), JSON.stringify(vBack));
+
+// A quiz with no results block: Storyline can only report a score through a
+// result slide, so one is added and the course is tracked by it.
+const bare = {
+  id: 'p2', title: 'Bare quiz', variables: [], completion: { mode: 'allSlides', autoScore: true, passingScore: 70 },
+  slides: [
+    slide('b1', 'Q1', [q('bq1', 'multipleChoice', { question: 'Red planet?', choices: [{ id: 'c1', text: 'Mars' }, { id: 'c2', text: 'Venus' }], correctChoiceIds: ['c1'], allowMultiple: false })]),
+    slide('b2', 'Q2', [q('bq2', 'multipleChoice', { question: 'Largest planet?', choices: [{ id: 'c1', text: 'Jupiter' }, { id: 'c2', text: 'Mercury' }], correctChoiceIds: ['c1'], allowMultiple: false })]),
+    slide('b3', 'Summary', [{ id: 'bt1', type: 'text', name: 'Line', x: 100, y: 100, w: 900, h: 80, props: { html: '<p>So far: %Score%% of %MaxPoints% points, pass at %PassPercent%%</p>', fontSize: 24 } }])
+  ]
+};
+await ed.evaluate((p) => window.__forgeStore.getState().setProject(p), bare);
+await ed.waitForTimeout(300);
+await ed.getByRole('button', { name: /^File/ }).click();
+const [bdl] = await Promise.all([ed.waitForEvent('download'), ed.locator('.menu-item', { hasText: 'Save as Storyline' }).click()]);
+const bpath = await bdl.path();
+await ed.waitForSelector('.story-report');
+const bReport = await ed.locator('.story-report').innerText();
+check('the report says a Results slide was added', /Results slide was added/.test(bReport), bReport);
+await ed.locator('.story-report .btn-accent').click();
+const bz = await JSZip.loadAsync(readFileSync(bpath));
+const bStory = await bz.file('story/story.xml').async('string');
+const bSlides = await Promise.all(['slide.xml', 'slide2.xml', 'slide3.xml', 'slide4.xml'].map((n) => bz.file(`story/slides/${n}`)?.async('string')));
+check('a fourth slide was written and it is the result slide', !!bSlides[3] && /layoutType="Quiz Review"/.test(bSlides[3]) && bSlides[3].includes('<rsltsIntr'));
+const bQuiz = /<quiz g="([^"]+)"[^>]*passScore="(\d+)"[^>]*resultSldG="([^"]+)"/.exec(bStory);
+check('the quiz carries the pass mark and points at the added slide', !!bQuiz && bQuiz[2] === '70' && !!bSlides[3] && bQuiz[3] === gOf(bSlides[3]));
+eq('both questions are in the quiz', [...(/<questionIdLst>(.*?)<\/questionIdLst>/.exec(bStory)?.[1] ?? '').matchAll(/<item>([^<]+)<\/item>/g)].map((m) => m[1]), [gOf(bSlides[0]), gOf(bSlides[1])]);
+check('the course is tracked by the added result slide', !!bQuiz && bStory.includes(`lmsResultSlideG="${bQuiz[3]}"`));
+check('the result slide shows the quiz score', !!bSlides[3] && bSlides[3].includes('%Quiz1.ScorePercent%'));
+check('a score shown before the result slide reads the running Score variable', bSlides[2].includes('%Score%') && !bSlides[2].includes('Quiz1.ScorePercent') && /<var [^>]*name="Score" dataType="num"/.test(bStory));
+check('the pass mark reads the quiz and total points are written out', bSlides[2].includes('%Quiz1.PassPercent%') && bSlides[2].includes('of 20 points'));
+check('each question adds its share to the running score', bSlides[0].includes('dblVal="50"') && !/@@\w+@@/.test(bSlides.join('')));
+check('the added slide is listed in the story', (bStory.match(/<sldId>/g) ?? bStory.match(/<sldId /g) ?? []).length === 4, String((bStory.match(/<sldId/g) ?? []).length));
 
 await browser.close();
 finish();

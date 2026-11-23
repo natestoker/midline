@@ -1943,3 +1943,23 @@ dropped from 65 to 9, on the other from 26 to 7.
   moves to the next slide. Before, Submit did nothing.
 - **Corner shapes** under Storyline's short names (`roundDiagCorner`,
   `snipDiagCorner` and the rest) map to their nearest shape without a note.
+
+# v6.45
+
+## Save as Storyline: the quiz score reaches the LMS
+Storyline reports a score only through a result slide, and only when the
+course is tracked by it.
+- **A course with questions and no results block gets a Results slide** at
+  the end, with Success and Failure layers. The save report says so.
+- **The course is tracked by the result slide** (`lmsResultSlideG` on the
+  quiz manager), which is what makes Storyline send score and pass or fail.
+  The pass mark is the course's own.
+- **Score references in text are translated.** On the result slide
+  `%Score%` reads the quiz; on earlier slides it reads a running Score number
+  fed by each question's Correct layer, because Storyline fills in the quiz
+  score only when the result slide submits it. `%PassPercent%`,
+  `%ScorePoints%` and `%PassPoints%` read the quiz, and `%MaxPoints%` is
+  written as a number.
+- The running score now adds whole numbers that total 100 (34, 33, 33 for
+  three questions) instead of 33.33.
+- Experimental until the test files are opened and published from Storyline.

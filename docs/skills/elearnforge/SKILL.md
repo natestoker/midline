@@ -10,7 +10,7 @@ Articulate Rise and Storyline**: Rise-style prebuilt **blocks** on a
 Storyline-style **canvas with layers and a trigger engine**. React,
 TypeScript, Vite, Zustand, compiled to a **single offline-capable HTML file**.
 
-**Current state: v6.44** (November 2026). `CHANGELOG.md` has every release;
+**Current state: v6.45** (November 2026). `CHANGELOG.md` has every release;
 read its tail before assuming what exists. This skill is the map; confirm
 specifics against the code.
 
