@@ -12,6 +12,9 @@ export const GRADED_BLOCK_TYPES = [
 
 export const DEFAULT_PASSING_SCORE = 80;
 
+// The id a trigger-graded slide reports its answer under.
+export const slideQuestionId = (slideId: string) => `q_${slideId}`;
+
 function walk(blocks: Block[]): Block[] {
   return blocks.flatMap((b) =>
     b.type === 'group' ? [b, ...walk((b.props as { blocks: Block[] }).blocks)] : [b]
@@ -26,6 +29,10 @@ export function gradedBlockIds(project: Project, onlySlides?: Set<string>): stri
       for (const b of walk(layer.blocks)) {
         if ((GRADED_BLOCK_TYPES as readonly string[]).includes(b.type)) ids.push(b.id);
       }
+    }
+    // A slide graded by its own triggers counts as one question.
+    if (slide.triggers.some((t) => t.enabled !== false && t.actions.some((a) => a.type === 'markCorrect' || a.type === 'markIncorrect'))) {
+      ids.push(slideQuestionId(slide.id));
     }
   }
   return ids;

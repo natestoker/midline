@@ -175,8 +175,11 @@ if (project) {
   check('choices can be selected', Boolean(b('Choice A').stateStyles.selected) && b('Choice B').stateStyles.selected.fill === '#FFCC00');
   const pickA = s2.triggers.find((t) => t.event === 'onClick' && t.sourceBlockId === b('Choice A').id);
   eq('choosing one clears the other', pickA.actions.map((a) => [a.blockId === b('Choice A').id ? 'A' : 'B', a.state]), [['A', 'selected'], ['B', 'normal']]);
-  const submits = s2.triggers.filter((t) => t.sourceBlockId === b('Submit').id && t.actions[0].type === 'showLayer');
-  eq('Submit has a right and a wrong trigger', submits.map((t) => [s2.layers.find((l) => l.id === t.actions[0].layerId).name, t.conditionLogic, t.conditions.map((c) => c.operator).join(',')]), [['Correct', 'and', 'ne,eq'], ['Incorrect', 'or', 'eq,ne']]);
+  const shown = (t) => t.actions.find((x) => x.type === 'showLayer');
+  const submits = s2.triggers.filter((t) => t.sourceBlockId === b('Submit').id && shown(t));
+  eq('Submit has a right and a wrong trigger', submits.map((t) => [s2.layers.find((l) => l.id === shown(t).layerId).name, t.conditionLogic, t.conditions.map((c) => c.operator).join(',')]), [['Correct', 'and', 'ne,eq'], ['Incorrect', 'or', 'eq,ne']]);
+  // The answer feeds the course score, so a result slide counts it.
+  eq('each also grades the question', submits.map((t) => t.actions[0].type), ['markCorrect', 'markIncorrect']);
 }
 
 // ---- it plays: layer shown -> variable set; custom Back; hidden layers on the canvas

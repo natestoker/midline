@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Scaled } from '../shared/Scaled';
 import type { Block, Slide } from '../schema/types';
 import { BLOCKS } from '../blocks/registry';
 import { slideBackgroundStyle } from '../shared/background';
@@ -39,7 +40,7 @@ function PreviewBlock({ block }: { block: Block }) {
       {heavy || !def ? (
         <div style={{ width: '100%', height: '100%', background: 'rgba(147,165,152,0.25)', borderRadius: 8 }} />
       ) : (
-        <def.Canvas block={block} selected={false} onUpdateProps={noop} />
+        <Scaled scale={block.scale}><def.Canvas block={block} selected={false} onUpdateProps={noop} /></Scaled>
       )}
     </div>
   );

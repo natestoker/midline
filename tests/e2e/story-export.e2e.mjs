@@ -60,7 +60,7 @@ await ed.waitForSelector('.story-report');
 await ed.locator('.story-report .btn-accent').click();
 const after = await ed.evaluate(() => {
   const p = window.__forgeStore.getState().project;
-  return { slides: p.slides.map((s) => s.name), vars: p.variables.map((v) => v.name), layers: p.slides.map((s) => s.layers.length), drag: p.slides.map((s) => s.layers[0].blocks.filter((b) => b.type === 'dragDrop').length), text: p.slides[0].layers[0].blocks.filter((b) => b.type === 'text').length, quizTriggers: p.slides.flatMap((s) => s.triggers.filter((t) => t.actions[0].type === 'showLayer' && ['Correct', 'Incorrect'].includes(s.layers.find((l) => l.id === t.actions[0].layerId)?.name))).length, jumps: p.slides.flatMap((s) => s.triggers).filter((t) => ['goToSlide', 'nextSlide'].includes(t.actions[0].type)).length };
+  return { slides: p.slides.map((s) => s.name), vars: p.variables.map((v) => v.name), layers: p.slides.map((s) => s.layers.length), drag: p.slides.map((s) => s.layers[0].blocks.filter((b) => b.type === 'dragDrop').length), text: p.slides[0].layers[0].blocks.filter((b) => b.type === 'text').length, quizTriggers: p.slides.flatMap((s) => s.triggers.filter((t) => t.actions.some((x) => x.type === 'showLayer' && ['Correct', 'Incorrect'].includes(s.layers.find((l) => l.id === x.layerId)?.name)))).length, jumps: p.slides.flatMap((s) => s.triggers).filter((t) => ['goToSlide', 'nextSlide'].includes(t.actions[0].type)).length };
 });
 eq('slides survive the round trip', after.slides, before.slides);
 // A quiz block is saved as a Storyline question, which adds its two feedback layers.

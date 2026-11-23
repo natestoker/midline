@@ -1,4 +1,5 @@
 import { deriveAccent } from '../shared/accent';
+import { Scaled } from '../shared/Scaled';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { Project } from '../schema/types';
 import { Runtime } from '../engine/runtime';
@@ -766,7 +767,7 @@ export function Player({ project, adapter, startSlideId, debug }: {
                           }
                         }}
                       >
-                        <def.Runtime block={block} runtime={runtime} stateStyle={stateStyle} t={hasTimeline || ownTl ? layerClockT : undefined} tState={tState} />
+                        <Scaled scale={block.scale}><def.Runtime block={block} runtime={runtime} stateStyle={stateStyle} t={hasTimeline || ownTl ? layerClockT : undefined} tState={tState} /></Scaled>
                         {/* Block-attached audio (Add/Bake audio) rides the
                             same pipeline as audio blocks: TimedMedia drives
                             it when the block has a timeline bar; otherwise it

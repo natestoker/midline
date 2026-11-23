@@ -1908,3 +1908,22 @@ Large-media "Compress" is not built; the check only warns.
   so Storyline triggers can use them. Every block type now has a Storyline
   form; nothing is left as an outlined box.
 - Experimental until confirmed by opening the test files in Storyline.
+
+# v6.43
+
+## Open Storyline: quiz templates come in whole
+Found by taking the Arcade quiz template through Midline slide by slide.
+- **Text kept only on a shape's Normal state is read.** Styled answer
+  buttons store their words there, so choices came in as empty rows.
+- **Freeform questions count toward the score.** New trigger actions "mark
+  this slide's question correct / incorrect" grade a question built from
+  shapes and triggers, and a result slide counts it.
+- **Points.** `%ScorePoints%`, `%PassPoints%` and `%MaxPoints%` are new
+  built-in text references (10 points a question unless the file says
+  otherwise), so a points readout shows points, not a percentage.
+- **Reset Quiz** becomes a new "reset quiz answers and score" action, and
+  **Review Quiz** jumps to the first question.
+- **Numbered drop slots** ("Drop step 2 here") import as a sequence question.
+- **Converted quiz blocks are sized for the slide.** A block can now carry a
+  content scale, so its text is readable on a 1920-wide slide, and it is given
+  room for its rows and Check button.

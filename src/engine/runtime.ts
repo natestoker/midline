@@ -4,7 +4,7 @@ import type {
 import { SELF_TARGET } from '../schema/types';
 import type { CompactResume, InteractionDetail, ResumeData, TrackingEvent } from '../tracking/adapter';
 import { isCompact } from '../tracking/adapter';
-import { completionNeedsPass, gradedBlockIds, passingScoreOf } from './scoring';
+import { completionNeedsPass, gradedBlockIds, passingScoreOf, slideQuestionId } from './scoring';
 
 // Trigger engine v1: deliberately thin per the brief.
 // Events: onClick / onSlideLoad / onVariableChange.
@@ -89,6 +89,10 @@ export class Runtime {
       case 'ScorePercent': return String(this.lastScore);
       case 'PassPercent':
       case 'PassScore': return String(passingScoreOf(this.project));
+      // Points: each correct graded question is worth the same amount.
+      case 'ScorePoints': return String(this.points().score);
+      case 'MaxPoints': return String(this.points().max);
+      case 'PassPoints': return String(this.points().pass);
       case 'Date': return new Date().toLocaleDateString();
       case 'Time': return new Date().toLocaleTimeString();
       case 'RandomNumber': return String(1 + Math.floor(Math.random() * 100));
@@ -98,6 +102,13 @@ export class Runtime {
         return String(this.snapshot.variables[v.id] ?? v.defaultValue);
       }
     }
+  }
+
+  private points(): { score: number; max: number; pass: number } {
+    if (!this.gradedIds) this.gradedIds = gradedBlockIds(this.project, new Set(this.order));
+    const each = Math.max(0, this.project.completion?.pointsPerQuestion ?? 10);
+    const max = this.gradedIds.length * each;
+    return { score: this.gradedIds.filter((id) => this.answers[id]).length * each, max, pass: Math.round((max * passingScoreOf(this.project)) / 100) };
   }
 
   // Replace %Reference% tokens in author text with live values. Unknown
@@ -831,6 +842,18 @@ export class Runtime {
         break;
       case 'closeLightbox':
         this.closeLightbox();
+        break;
+      case 'markCorrect':
+      case 'markIncorrect':
+        this.reportInteraction(slideQuestionId(this.currentSlide().id), action.type === 'markCorrect' ? 'correct' : 'incorrect', action.type === 'markCorrect');
+        break;
+      case 'resetQuiz':
+        // Start the quiz over: no answers, no attempts used, no score yet.
+        this.answers = {};
+        this.attempts = {};
+        this.lastScore = 0;
+        this.scoreSet = false;
+        this.emit();
         break;
       case 'executeJs':
       case 'exitCourse':

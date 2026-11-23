@@ -195,6 +195,9 @@ const ACTIONS: Record<ActionType, ActionDef> = {
   openUrl: { verb: 'open URL', icon: 'link', group: G_NAV, params: ['url'] },
   completeCourse: { verb: 'complete course', icon: 'circle-check', group: G_NAV, params: [] },
   exitCourse: { verb: 'exit course', icon: 'log-out', group: G_NAV, params: [] },
+  resetQuiz: { verb: 'reset quiz answers and score', icon: 'rotate-ccw', group: G_VARS, params: [] },
+  markCorrect: { verb: "mark this slide's question correct", icon: 'circle-check', group: G_VARS, params: [] },
+  markIncorrect: { verb: "mark this slide's question incorrect", icon: 'x', group: G_VARS, params: [] },
   setVariable: { verb: 'set variable', icon: 'variable', group: G_VARS, params: ['variable', 'value'] },
   adjustVariable: { verb: 'adjust variable', icon: 'variable', group: G_VARS, params: ['variable', 'delta'] },
   resetVariable: { verb: 'reset variable', icon: 'rotate-ccw', group: G_VARS, params: ['variable'] },
@@ -308,7 +311,7 @@ export function TriggersPanel() {
       case 'openUrl': return { type, url: 'https://' };
       case 'executeJs': return { type, code: '// forge.setVariable("name", value); forge.nextSlide();\n' };
       case 'closeLightbox': return { type };
-      case 'completeCourse': case 'exitCourse': case 'pauseTimeline': case 'resumeTimeline':
+      case 'completeCourse': case 'exitCourse': case 'resetQuiz': case 'markCorrect': case 'markIncorrect': case 'pauseTimeline': case 'resumeTimeline':
       case 'restartTimeline': case 'nextSlide': case 'prevSlide': case 'restartSlide':
         return { type };
     }

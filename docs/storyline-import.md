@@ -94,8 +94,17 @@ a converted question is removed, since the block checks itself.
 follow a "Quiz score" trigger condition against the quiz's pass mark, and the
 pass mark becomes the course's pass mark with automatic scoring on.
 
-Not carried yet: points per question, attempt limits, shuffling, Review
-Quiz and Reset Quiz.
+Freeform questions that keep their Storyline shapes are graded by two trigger
+actions, "mark this slide's question correct" and "incorrect", so they count
+toward the score like a quiz block. Points text (`%Quiz1.ScorePoints%`,
+`%Quiz1.PassPoints%`) reads `%ScorePoints%` and `%PassPoints%`. Reset Quiz
+becomes "reset quiz answers and score". Review Quiz jumps to the first
+question, since there is no review mode.
+
+Converted quiz blocks are scaled to the slide (twice the size on a 1920-wide
+slide), because their text is a fixed size.
+
+Not carried yet: different points per question, attempt limits and shuffling.
 
 ## Not converted yet
 

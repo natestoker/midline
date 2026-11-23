@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Scaled } from '../shared/Scaled';
 import type { Runtime } from '../engine/runtime';
 import type { Block, Slide } from '../schema/types';
 import { BLOCKS } from '../blocks/registry';
@@ -106,7 +107,7 @@ export function Lightbox({ runtime, slide, stageW, stageH }: { runtime: Runtime;
                   >
                     <BlockFx emphasis={stateStyle?.emphasis ?? block.emphasis}>
                       <div style={{ width: '100%', height: '100%', ...shadowStyle(block) }}>
-                        <def.Runtime block={block} runtime={runtime} stateStyle={stateStyle} t={hasTimeline ? t : undefined} tState={tState} />
+                        <Scaled scale={block.scale}><def.Runtime block={block} runtime={runtime} stateStyle={stateStyle} t={hasTimeline ? t : undefined} tState={tState} /></Scaled>
                       </div>
                     </BlockFx>
                   </div>

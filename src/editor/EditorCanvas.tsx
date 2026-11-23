@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Scaled } from '../shared/Scaled';
 import type { Block, Layer, ShapeProps } from '../schema/types';
 import { selectedIds, useCurrentSlide, useProjectStore, walkBlocks } from '../state/projectStore';
 import { useUiStore } from '../state/uiStore';
@@ -158,6 +159,7 @@ export function BlockNode({
           images); inner shadows on non-shape blocks approximate with an
           inset box-shadow. Shape blocks draw inner shadows themselves. */}
       <div style={{ width: '100%', height: '100%', ...shadowStyle(block) }}>
+        <Scaled scale={block.scale}>
         <def.Canvas
           block={block}
           selected={isSelected}
@@ -165,6 +167,7 @@ export function BlockNode({
             updateBlock(block.id, (b) => fn(b.props), history)
           }
         />
+        </Scaled>
       </div>
       {isSelected && !locked && (
         <>

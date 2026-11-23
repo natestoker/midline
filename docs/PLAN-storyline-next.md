@@ -21,6 +21,16 @@ to a real course, not by difficulty.
 - **Written as web objects, same round (Z9):** slider, timer and code
   blocks. A native Storyline slider would still need a sample file to copy.
 
+## Quiz templates (the store's 30)
+
+- **Arcade (01) imports cleanly as of v6.43**: every slide keeps its text,
+  all ten questions work, the score and points count, and one note is left
+  (Review Quiz has no review mode).
+- **The other 29 have not been run.** They are not in Dropbox or Drive and
+  the PC folders are not reachable from a cloud session. Upload them (or copy
+  the `quiz templates` folder into Dropbox `/Nate`) to run each one through
+  the same audit.
+
 ## Before starting
 
 Three things only Nate can supply. Without them the matching section stalls.

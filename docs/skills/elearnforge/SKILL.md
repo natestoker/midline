@@ -10,7 +10,7 @@ Articulate Rise and Storyline**: Rise-style prebuilt **blocks** on a
 Storyline-style **canvas with layers and a trigger engine**. React,
 TypeScript, Vite, Zustand, compiled to a **single offline-capable HTML file**.
 
-**Current state: v6.42** (November 2026). `CHANGELOG.md` has every release;
+**Current state: v6.43** (November 2026). `CHANGELOG.md` has every release;
 read its tail before assuming what exists. This skill is the map; confirm
 specifics against the code.
 
@@ -70,7 +70,13 @@ is still self-contained; the bundler does that.
   course, exit course, open / close lightbox, open URL, execute JavaScript,
   audio and timeline control, emphasis pulse, player button enable.
 - Triggers can be disabled and carry conditions on variables, on a block's
-  state, or on the quiz score (`Condition.score`, compared with a number). Graded
+  state, or on the quiz score (`Condition.score`, compared with a number).
+- Scoring: quiz blocks grade themselves; a question built from shapes and
+  triggers is graded with `markCorrect` / `markIncorrect` (one per slide,
+  id `q_<slideId>`). `resetQuiz` clears answers, attempts and score. Text
+  references: `%Score%`, `%PassPercent%`, `%ScorePoints%`, `%PassPoints%`,
+  `%MaxPoints%`.
+- `Block.scale` enlarges a block's content inside its box (`shared/Scaled.tsx`). Graded
   questions can have a maximum number of attempts.
 
 ## Storyline `.story` support

@@ -440,6 +440,9 @@ export interface Block {
   h: number;
   props: BlockProps;
   timing?: BlockTiming; // absent = visible for the whole slide (v1/v2 projects)
+  // Content zoom, 1 = normal. The block keeps its box; what is drawn inside
+  // is scaled. Used for quiz blocks on large slides, whose text is a fixed size.
+  scale?: number;
   // Visual overrides per interactive state (Storyline model). Defined
   // states also switch behavior on: a 'selected' style makes clicks
   // toggle selection; a 'visited' style marks the block after first click.
@@ -613,6 +616,12 @@ export type Action =
   | { type: 'resetVariable'; variableId: string } // back to its default value
   | { type: 'executeJs'; code: string }           // run author JavaScript (forge + gsap in scope)
   | { type: 'exitCourse' }
+  // Grade the question on this slide. For questions built from ordinary
+  // blocks and triggers (a Storyline freeform question, say), which have no
+  // quiz block to do it. One question per slide.
+  | { type: 'markCorrect' }
+  | { type: 'markIncorrect' }
+  | { type: 'resetQuiz' }             // forget every answer, attempt and the score (a "Play again" button)
   | { type: 'openLightbox'; slideId: string }  // show a lightbox slide as a popup over this one
   | { type: 'closeLightbox' };        // save progress, end the session, close the window if allowed
 
@@ -780,6 +789,10 @@ export interface CompletionSettings {
   // How many times a learner may answer each graded question. Absent or 0 =
   // unlimited. After the last attempt the question locks.
   maxAttempts?: number;
+  // Points a correct answer is worth, for text that shows points
+  // (%ScorePoints%, %PassPoints%, %MaxPoints%). Absent = 10. The score that
+  // is reported stays a percentage.
+  pointsPerQuestion?: number;
 }
 
 // A question bank: a pool of slides of which each learner sees a random

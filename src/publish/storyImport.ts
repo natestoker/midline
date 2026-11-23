@@ -29,6 +29,8 @@ const PT_TO_PX = 4 / 3;
 // Storyline point sizes are defined on a 960-wide slide and grow with the
 // slide, so a 1920-wide story renders the same number twice as large.
 let fontScale = 1;
+// Zoom for converted quiz blocks: 1 on a 960 slide, 2 on a 1920 one.
+let blockScale = 1;
 const ZERO_G = '00000000-0000-0000-0000-000000000000';
 
 export interface StoryImportResult {
@@ -226,7 +228,8 @@ function parseText(escaped: string | null | undefined, theme: Theme, fonts: Set<
   }
   // A result slide reads the quiz through Storyline's own variables; here
   // the score and pass mark are built-in references, both in percent.
-  const html = parts.join('').replace(/%\w+\.(ScorePercent|ScorePoints)%/g, '%Score%').replace(/%\w+\.(PassPercent|PassPoints)%/g, '%PassPercent%');
+  const html = parts.join('').replace(/%\w+\.ScorePercent%/g, '%Score%').replace(/%\w+\.PassPercent%/g, '%PassPercent%')
+    .replace(/%\w+\.ScorePoints%/g, '%ScorePoints%').replace(/%\w+\.PassPoints%/g, '%PassPoints%');
   return { html, fontSize: firstSize || 16, align, color: firstColor, font: firstFont, lineHeight };
 }
 
@@ -273,6 +276,7 @@ interface Ctx {
   varByG: Map<string, Variable>;
   captions: string | null;             // caption text of the last sound read (WebVTT)
   nativeIntr: Set<string>;             // questions rebuilt as a quiz block
+  firstQuestionSlide: string | null;   // our id of the first slide holding a question
   deadShapes: Set<string>;             // Submit buttons those blocks make redundant
   hasResults: boolean;                 // the file has a result slide
   hotspotQuestions: { spots: { g: string; correct: boolean }[]; correctLayerG: string; incorrectLayerG: string }[];
@@ -360,6 +364,17 @@ function stateStylesOf(shape: Element, theme: Theme, fonts: Set<string>): Partia
   return Object.keys(out).length ? out : undefined;
 }
 
+// The element that carries a shape's text: the shape, or the copy of it
+// inside its Normal state when the shape's own text is empty.
+const hasWords = (el: Element | undefined) => /Text="[^"]/.test(kid(el, 'text')?.textContent ?? '');
+function textHostOf(shape: Element): Element {
+  if (hasWords(shape)) return shape;
+  const states = kids(kid(shape, 'stateLst'));
+  const normal = states.find((st) => st.getAttribute('name') === 'Normal') ?? states[0];
+  const inner = kids(kid(normal, 'shapeLst')).find(hasWords);
+  return inner ?? shape;
+}
+
 // ---------- questions as native blocks ----------
 // Storyline's form questions (and the freeform ones that are not a plain
 // pick) carry their answers as data, so they come across as Midline's own
@@ -392,6 +407,21 @@ function unionBox(els: (Element | undefined)[]): { x: number; y: number; w: numb
   return { x, y, w: Math.max(...boxes.map((b) => b.x + b.w)) - x, h: Math.max(...boxes.map((b) => b.y + b.h)) - y };
 }
 
+// Rough height a quiz block needs at its normal size, so its last row and
+// Check button are not cut off when the Storyline shapes it replaces were shorter.
+function rowsNeeded(type: string, p: Record<string, unknown>): number {
+  const count = (k: string) => (Array.isArray(p[k]) ? (p[k] as unknown[]).length : 0);
+  const head = p.question ? 56 : 8;
+  switch (type) {
+    case 'multipleChoice': return head + count('choices') * 54 + 70;
+    case 'matching': return head + count('pairs') * 50 + 70;
+    case 'sequence': return head + count('items') * 50 + 70;
+    case 'dragDrop': return head + 70 + Math.ceil(count('items') / 3) * 44 + 120;
+    case 'fillBlank': return head + 110;
+    default: return 0;
+  }
+}
+
 function nativeQuestion(intr: Element, all: Element[], ctx: Ctx, slideName: string): NativeQuestion | null {
   const tag = intr.localName;
   const g = intr.getAttribute('g') ?? '';
@@ -414,7 +444,9 @@ function nativeQuestion(intr: Element, all: Element[], ctx: Ctx, slideName: stri
   const consumed = new Set<string>();
   const eat = (...els: (Element | undefined)[]) => els.forEach((e) => { if (e) consumed.add(e.getAttribute('g') ?? ''); });
   const make = (type: string, box: { x: number; y: number; w: number; h: number }, p: Record<string, unknown>, name: string): NativeQuestion =>
-    ({ block: { id: uid('blk'), type, name, ...box, props: p } as unknown as Block, consumed, layers });
+    // Quiz blocks draw at a fixed text size; zoom them to suit the slide.
+    // They also need room for their rows and a Check button.
+    ({ block: { id: uid('blk'), type, name, ...box, h: Math.max(box.h, Math.round(rowsNeeded(type, p) * blockScale)), props: p, ...(type !== 'text' && blockScale > 1 ? { scale: blockScale } : {}) } as unknown as Block, consumed, layers });
 
   if (tag in PICK_FORMS) {
     const shapes = children.filter((e) => ['radio', 'checkBox', 'wordBankItem'].includes(e.localName)).sort(byTop);
@@ -497,6 +529,18 @@ function nativeQuestion(intr: Element, all: Element[], ctx: Ctx, slideName: stri
         .filter(({ b }) => Math.abs((b.y + b.h / 2) - (tb.y + tb.h / 2)) < tb.h / 2 && b.h < tb.h * 1.6 && b.x + b.w <= tb.x + 4)
         .sort((m, n) => (tb.x - (m.b.x + m.b.w)) - (tb.x - (n.b.x + n.b.w)))[0]?.e;
     };
+    // Numbered slots ("Drop step 2 here") with one item each are an ordering
+    // question: the number is the item's place in the sequence.
+    const slotNo = own.map((t) => Number(/\d+/.exec(t)?.[0] ?? NaN));
+    const numbered = targetEls.length > 1 && slotNo.every((v) => Number.isInteger(v)) && new Set(slotNo).size === targetEls.length
+      && drags.every((d) => d.target) && new Set(drags.map((d) => d.target)).size === drags.length && drags.length === targetEls.length;
+    if (numbered) {
+      const tiles = targetEls.map(labelFor);
+      const ordered = [...drags].sort((a, c) => slotNo[targetEls.indexOf(a.target!)] - slotNo[targetEls.indexOf(c.target!)]);
+      tiles.forEach((l) => { if (l) used.add(l); });
+      eat(...used);
+      return make('sequence', unionBox([...used]), { question: '', items: ordered.map((d) => ({ id: uid('s'), text: wordsOf(d.shape) })), ...fb() }, 'Sequence question');
+    }
     const labels = distinct ? [] : targetEls.map(labelFor);
     const targets = targetEls.map((t, i) => ({ id: uid('t'), label: (labels[i] ? wordsOf(labels[i]) : own[i]) || `Target ${i + 1}` }));
     const items = drags.map((d) => ({ id: uid('i'), text: wordsOf(d.shape), targetId: d.target ? targets[targetEls.indexOf(d.target)].id : '' }));
@@ -665,7 +709,11 @@ async function importShapes(
       } as Block);
     } else if (tag === 'textBox' || SHAPE_TAGS[tag] || kid(shape, 'prstGeom')) {
       const paint = paintOf(shape, theme);
-      const text = parseText(kid(shape, 'text')?.textContent, theme, ctx.fonts);
+      // Storyline sometimes keeps a shape's words only on its Normal state
+      // (a styled answer button, for one). Read them from there when the
+      // shape itself is empty.
+      const host = textHostOf(shape);
+      const text = parseText(kid(host, 'text')?.textContent, theme, ctx.fonts);
       const isBox = tag === 'textBox';
       const kind = PRSTGEOM_TO_KIND[SHAPE_TAGS[tag] ?? 'rect'] ?? 'rectangle';
       const visible = (paint.fill && paint.fill !== 'transparent') || paint.borderWidth > 0 || paint.fillImageG;
@@ -687,9 +735,9 @@ async function importShapes(
         } as Block);
       }
       if (text) {
-        const margin = kid(shape, 'textMargin');
-        const va = shape.getAttribute('vertAlign');
-        const ha = shape.getAttribute('horzAlign');
+        const margin = kid(host, 'textMargin');
+        const va = host.getAttribute('vertAlign') ?? shape.getAttribute('vertAlign');
+        const ha = host.getAttribute('horzAlign') ?? shape.getAttribute('horzAlign');
         made.push({
           id: uid('blk'), type: 'text', ...box, w: Math.max(20, box.w), h: Math.max(16, box.h), ...common,
           ...(name ? { name: visible ? `${name} text` : name } : {}),
@@ -859,6 +907,15 @@ function convertTrigger(
       break;
     }
     case 'CloseLightbox': actions = [{ type: 'closeLightbox' }]; break;
+    // "Reset results" starts the quiz over. "Review results" walks the quiz
+    // again; the nearest thing here is going back to its first question.
+    case 'ResetQuizSL': actions = [{ type: 'resetQuiz' }]; break;
+    case 'ReviewQuizSL': {
+      const first = ctx.firstQuestionSlide;
+      actions = first ? [{ type: 'goToSlide', slideId: first }] : unsupported('there is no question slide to review');
+      if (first) ctx.note(slideName, 'a Review Quiz button now jumps to the first question (there is no review mode)');
+      break;
+    }
     case 'CompleteCourse': actions = [{ type: 'completeCourse' }]; break;
     case 'ExitCourse': case 'closeWindow': actions = [{ type: 'exitCourse' }]; break;
     case 'Emphasize': {
@@ -978,8 +1035,9 @@ function convertTrigger(
     const right: Condition[] = picked.map((c) => ({ variableId: '', blockId: c.id, blockState: 'selected', operator: c.correct ? 'eq' : 'ne' }));
     const wrong: Condition[] = picked.map((c) => ({ variableId: '', blockId: c.id, blockState: 'selected', operator: c.correct ? 'ne' : 'eq' }));
     const no = show(q.incorrectLayerG).length ? show(q.incorrectLayerG) : show(q.tryLayerG);
-    if (show(q.correctLayerG).length) out.push({ ...t, id: uid('trg'), conditions: right, conditionLogic: 'and', actions: show(q.correctLayerG) });
-    if (no.length) out.push({ ...t, id: uid('trg'), conditions: wrong, conditionLogic: 'or', actions: no });
+    // The answer also counts toward the course score.
+    if (show(q.correctLayerG).length) out.push({ ...t, id: uid('trg'), conditions: right, conditionLogic: 'and', actions: [{ type: 'markCorrect' }, ...show(q.correctLayerG)] });
+    if (no.length) out.push({ ...t, id: uid('trg'), conditions: wrong, conditionLogic: 'or', actions: [{ type: 'markIncorrect' }, ...no] });
   }
   if (!out.length) ctx.note(slideName, 'a question has no feedback layers, so Submit does nothing');
   return out;
@@ -1043,7 +1101,7 @@ export async function importStory(file: File | Blob, fileName = 'course.story'):
   const perSlide = new Map<string, Map<string, number>>();
   const ctx: Ctx = {
     zip, warnings, fonts: new Set(), mediaByAsset: new Map(), dataUrls: new Map(),
-    picks: new Map(), slideByG: new Map(), layerByG: new Map(), blocksByG: new Map(), varByG: new Map(), captions: null, nativeIntr: new Set(), deadShapes: new Set(), droppedLayers: new Set(), hasResults: false, hotspotQuestions: [], scoreVars: new Map(), passScore: null,
+    picks: new Map(), slideByG: new Map(), layerByG: new Map(), blocksByG: new Map(), varByG: new Map(), captions: null, nativeIntr: new Set(), firstQuestionSlide: null, deadShapes: new Set(), droppedLayers: new Set(), hasResults: false, hotspotQuestions: [], scoreVars: new Map(), passScore: null,
     note: (slide, msg) => {
       const m = perSlide.get(slide) ?? new Map<string, number>();
       m.set(msg, (m.get(msg) ?? 0) + 1);
@@ -1058,6 +1116,7 @@ export async function importStory(file: File | Blob, fileName = 'course.story'):
   }
 
   fontScale = width / 960;
+  blockScale = Math.max(1, Math.min(2.5, Math.round((width / 960) * 4) / 4));
 
   // Variables: only the author's own. Built-ins (Player., Project. ...) stay behind.
   const variables: Variable[] = [];
@@ -1080,6 +1139,7 @@ export async function importStory(file: File | Blob, fileName = 'course.story'):
     for (const a of ['passPct', 'passPoints']) ctx.scoreVars.set(quiz.getAttribute(a) ?? '', 'pass');
     if (ctx.passScore === null && quiz.hasAttribute('passScore')) ctx.passScore = num(quiz, 'passScore', 80);
   }
+  const points = num(kid(Array.from(story.getElementsByTagName('quizMgr'))[0], 'defaults'), 'points', 10);
 
   // Media: checksum -> file, then asset id -> checksum.
   const byHash = new Map<string, string>();
@@ -1169,6 +1229,7 @@ export async function importStory(file: File | Blob, fileName = 'course.story'):
     ctx.captions = null;
     const main = await importShapes(kid(el, 'shapeLst'), ctx, slideTheme, slide.name);
     const slideCaptions = ctx.captions as string | null;
+    if (!ctx.firstQuestionSlide && kids(kid(el, 'shapeLst')).some((x) => x.localName.endsWith('Intr') && x.localName !== 'rsltsIntr')) ctx.firstQuestionSlide = slide.id;
     base.blocks = [...inherited, ...main.blocks];
     const startHidden = [...main.hidden];
     main.shapeTriggers.forEach((t) => triggers.push({ owner: { kind: 'shape', g: t.owner }, el: t.el }));
@@ -1231,7 +1292,7 @@ export async function importStory(file: File | Blob, fileName = 'course.story'):
       for (const spot of hq.spots) {
         const blockId = (ctx.blocksByG.get(spot.g) ?? [])[0];
         const layerId = ctx.layerByG.get(spot.correct ? hq.correctLayerG : hq.incorrectLayerG);
-        if (blockId && layerId) slide.triggers.push({ id: uid('trg'), event: 'onClick', sourceBlockId: blockId, conditions: [], actions: [{ type: 'showLayer', layerId }] });
+        if (blockId && layerId) slide.triggers.push({ id: uid('trg'), event: 'onClick', sourceBlockId: blockId, conditions: [], actions: [{ type: spot.correct ? 'markCorrect' : 'markIncorrect' }, { type: 'showLayer', layerId }] });
       }
     }
     const fresh = new Map([...ctx.picks].filter(([g]) => !seenPicks.has(g)));
@@ -1281,7 +1342,7 @@ export async function importStory(file: File | Blob, fileName = 'course.story'):
       slides,
       variables,
       // Graded questions or a result slide: score the course and keep the pass mark.
-      completion: { mode: 'allSlides', ...(ctx.nativeIntr.size || ctx.hasResults || ctx.picks.size ? { autoScore: true, passingScore: ctx.passScore ?? 80 } : {}) },
+      completion: { mode: 'allSlides', ...(ctx.nativeIntr.size || ctx.hasResults || ctx.picks.size ? { autoScore: true, passingScore: ctx.passScore ?? 80, ...(points !== 10 ? { pointsPerQuestion: points } : {}) } : {}) },
       fonts: [...ctx.fonts]
     },
     warnings
